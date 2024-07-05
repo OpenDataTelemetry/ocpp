@@ -16,12 +16,50 @@ import (
 	MQTT "github.com/eclipse/paho.mqtt.golang"
 )
 
+// --------------------------Achar Topico-----------------------------------------------------
+
+func idCarregador(chargePointId string, connectorId string) string {
+	if chargePointId == "EVSE_2" {
+		// fmt.Println(EVSE2[connectorId])
+		valor, ok := EVSE2[connectorId]
+		if ok { // evita erro de connectorId não encontrado
+			return valor
+		}
+	} else if chargePointId == "EVSE_1" {
+		// fmt.Println(EVSE1[connectorId])
+		valor, ok := EVSE1[connectorId]
+		if ok { // evita erro de connectorId não encontrado
+			return valor
+		} else {
+			return "errorrrr"
+		}
+	}
+	return "error" // evita erro de chargePointId não encontrado
+
+}
+
+// Variaveis Globais da Aplicação
+var (
+	// Registro das transações
+	Transaction = map[string]string{}
+
+	//  Estações de Carregamento
+	EVSE1 = map[string]string{
+		"0": "all",
+		"1": "19400577",
+		"2": "19743013",
+	}
+	EVSE2 = map[string]string{}
+)
+
+// -----------------------------Enviar MQTT----------------------------------------------------
+
 // import "mqtt/mqtt"
-func RunMQTTClient(tipoMensagem string, id_EVSE string, payload string) {
+func RunMQTTClient(tipoMensagem string, chargePointId string, ConnectorId string, payload string) {
 	opts := MQTT.NewClientOptions()
 	// topic := "test/topic"
 	// topic := "IMT/EVSE/0001/rx"
-	topic := fmt.Sprintf("OpenDataTelemetry/SmartCampusMaua/EnergyCenter/%s/%s/rx", tipoMensagem, id_EVSE)
+	topic := fmt.Sprintf("OpenDataTelemetry/SmartCampusMaua/EnergyCenter/%s/%s/rx", tipoMensagem, idCarregador(chargePointId, ConnectorId))
 	broker := "tcp://smartcampus.maua.br:1883"
 	// broker = "tcp://localhost:1883"
 
@@ -143,7 +181,7 @@ func (handler *CentralSystemHandler) OnMeterValues(chargePointId string, request
 		// RunMQTTClient(string(request.GetFeatureName()) +", idConector="+ strconv.Itoa(request.ConnectorId)+", ChargePoitID=" +chargePointId+", Valor="+mv.SampledValue[0].Value + ", " + +fmt.Sprint(mv.Timestamp)+string(mv.SampledValue[0].Unit)) // codigo que inviarei para o banco de dados
 		// RunMQTTClient("			Outras variaveis ➜ " + string(request.GetFeatureName()) +" "+string(mv.SampledValue[0].Format)+" "+string(mv.SampledValue[0].Measurand)+" "+string(mv.SampledValue[0].Context)+" "+string(mv.SampledValue[0].Location)+" ") // outras strings
 
-		RunMQTTClient("EVSE_MeterValues", chargePointId+"Carregador"+strconv.Itoa(request.ConnectorId), string(request.GetFeatureName())+", idConector="+strconv.Itoa(request.ConnectorId)+", ChargePoitID="+chargePointId+", Valor="+mv.SampledValue[0].Value+", "+fmt.Sprint(mv.Timestamp)+" |||| "+string(mv.SampledValue[0].Unit)+" "+string(mv.SampledValue[0].Format)+" "+string(mv.SampledValue[0].Measurand)+" "+string(mv.SampledValue[0].Context)+" "+string(mv.SampledValue[0].Location)) // codigo que inviarei para o banco de dados
+		RunMQTTClient("EVSE_MeterValues", chargePointId, strconv.Itoa(request.ConnectorId), string(request.GetFeatureName())+", idConector="+strconv.Itoa(request.ConnectorId)+", ChargePoitID="+chargePointId+", Valor="+mv.SampledValue[0].Value+", "+fmt.Sprint(mv.Timestamp)+" |||| "+string(mv.SampledValue[0].Unit)+" "+string(mv.SampledValue[0].Format)+" "+string(mv.SampledValue[0].Measurand)+" "+string(mv.SampledValue[0].Context)+" "+string(mv.SampledValue[0].Location)) // codigo que inviarei para o banco de dados
 
 	}
 
@@ -203,7 +241,7 @@ func (handler *CentralSystemHandler) OnStartTransaction(chargePointId string, re
 	// }
 	logDefault(chargePointId, request.GetFeatureName()).Infof("started transaction %v for connector %v", transaction.id, transaction.connectorId)
 
-	RunMQTTClient("EVSE_StartTransactions", chargePointId+"Carregador"+strconv.Itoa(request.ConnectorId), string(request.GetFeatureName())+", idConector="+strconv.Itoa(transaction.connectorId)+", ChargePoitID="+chargePointId+", transaction.idTag="+transaction.idTag+", QuantidadeInicial= "+strconv.Itoa(transaction.startMeter)+", TempoInicio= "+fmt.Sprint(transaction.startTime))
+	RunMQTTClient("EVSE_StartTransactions", chargePointId, strconv.Itoa(request.ConnectorId), string(request.GetFeatureName())+", idConector="+strconv.Itoa(transaction.connectorId)+", ChargePoitID="+chargePointId+", transaction.idTag="+transaction.idTag+", QuantidadeInicial= "+strconv.Itoa(transaction.startMeter)+", TempoInicio= "+fmt.Sprint(transaction.startTime))
 
 	return core.NewStartTransactionConfirmation(types.NewIdTagInfo(types.AuthorizationStatusAccepted), transaction.id), nil
 
@@ -237,7 +275,14 @@ func (handler *CentralSystemHandler) OnStopTransaction(chargePointId string, req
 		logDefault(chargePointId, request.GetFeatureName()).Printf("%v", mv)
 	}
 
-	RunMQTTClient("EVSE_StopTransactions", chargePointId+"Carregador"+strconv.Itoa(transaction.connectorId), string(request.GetFeatureName())+", transaction.idTag="+strconv.Itoa(request.TransactionId)+"QuantidadeFinal: "+strconv.Itoa(transaction.endMeter)+"Tempo de Inicio: "+fmt.Sprint(transaction.endTime))
+	fmt.Println(chargePointId)
+	fmt.Println(strconv.Itoa(transaction.connectorId)) // problema aqui
+	// fmt.Println(strconv.Itoa(request.ConnectorId)) // problema aqui --> usar apenas  request.TransactionId
+	fmt.Println(string(request.GetFeatureName()))
+	fmt.Println(strconv.Itoa(request.TransactionId))
+	fmt.Println(strconv.Itoa(transaction.endMeter))
+	fmt.Println(fmt.Sprint(transaction.endTime))
+	RunMQTTClient("EVSE_StopTransactions", chargePointId, strconv.Itoa(transaction.connectorId), string(request.GetFeatureName())+", transaction.idTag="+strconv.Itoa(request.TransactionId)+"QuantidadeFinal: "+strconv.Itoa(transaction.endMeter)+"Tempo de Inicio: "+fmt.Sprint(transaction.endTime))
 
 	// RunMQTTClient("Finalizando a sessão\n" + " transaction.id =" + strconv.Itoa(transaction.id) + ", transaction.startTime =" + fmt.Sprint(transaction.startTime) + " transaction.endTime =" + fmt.Sprint(transaction.endTime) + " transaction.startMeter =" + strconv.Itoa(transaction.startMeter) + " transaction.endMeter =" + strconv.Itoa(transaction.endMeter) + " transaction.connectorId =" + strconv.Itoa(transaction.connectorId) + " transaction.idTag =" + transaction.idTag)
 
