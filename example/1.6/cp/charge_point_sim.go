@@ -123,7 +123,7 @@ func exampleRoutine(chargePoint ocpp16.ChargePoint, stateHandler *ChargePointHan
 	// Update connector status
 	updateStatus(stateHandler, chargingConnector, core.ChargePointStatusAvailable)
 	// Wait for some time ...
-	time.Sleep(5 * time.Minute)
+	// time.Sleep(5 * time.Minute) // comentado ana 
 }
 
 // Start function
@@ -173,8 +173,14 @@ func main() {
 	if err != nil {
 		log.Errorln(err)
 	} else {
-		log.Infof("connected to central system at %v", csUrl)
-		exampleRoutine(chargePoint, handler)
+		for i := 0; i < 10; i++ {																										//Ana
+			fmt.Printf("Execução %d\n", i+1) /// ANA
+
+			log.Infof("connected to central system at %v", csUrl)
+			exampleRoutine(chargePoint, handler)
+
+		}
+
 		// Disconnect
 		chargePoint.Stop()
 		log.Infof("disconnected from central system")
