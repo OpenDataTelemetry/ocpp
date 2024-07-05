@@ -1,3 +1,9 @@
+<details>
+  <summary> <h1> 
+  <a href="https://github.com/lorenzodonini/ocpp-go">OCPP-go Library</a>
+  </h1>
+ </summary>
+
 # ocpp-go
 
 [![Build Status](https://travis-ci.org/lorenzodonini/ocpp-go.svg?branch=master)](https://travis-ci.org/lorenzodonini/ocpp-go)
@@ -525,3 +531,16 @@ If you're contributing a code change, you'll want to be sure the tests are passi
 -   Install [toxiproxy](https://github.com/Shopify/toxiproxy) for your platform
 -   Shell 1 - `toxiproxy-server -port 8474 -host localhost`
 -   Shell 2 - `go fmt ./... && go vet ./... && go test -v -count=1 -failfast ./...`
+  </details>
+
+
+# smartcampusmaua-ocpp
+
+
+## Rodando o simulador
+
+CLIENT_ID=Simulador CENTRAL_SYSTEM_URL=ws://127.0.0.1:8887 go run example/1.6/cp/*.go
+
+Colocando o sistema no ar
+
+CLIENT_ID=Simulador CENTRAL_SYSTEM_URL=ws://127.0.0.1:8887 go run example/1.6/cp/*.go
