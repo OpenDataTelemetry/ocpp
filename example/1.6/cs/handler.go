@@ -3,33 +3,36 @@ package main
 import (
 	"fmt"
 	"time"
-    // "reflect"
-    "strconv"
+
+	// "reflect"
+	"strconv"
 
 	"github.com/sirupsen/logrus"
 
 	"github.com/lorenzodonini/ocpp-go/ocpp1.6/core"
 	"github.com/lorenzodonini/ocpp-go/ocpp1.6/firmware"
 	"github.com/lorenzodonini/ocpp-go/ocpp1.6/types"
-)
-import (
+
 	MQTT "github.com/eclipse/paho.mqtt.golang"
 )
+
 // import "mqtt/mqtt"
-func RunMQTTClient(payload string) {
+func RunMQTTClient(tipoMensagem string, id_EVSE string, payload string) {
 	opts := MQTT.NewClientOptions()
-	topic := "test/topic"
-	broker := "mqtt.maua.br:1883"
-	broker = "tcp://localhost:1883"
+	// topic := "test/topic"
+	// topic := "IMT/EVSE/0001/rx"
+	topic := fmt.Sprintf("OpenDataTelemetry/SmartCampusMaua/EnergyCenter/%s/%s/rx", tipoMensagem, id_EVSE)
+	broker := "tcp://smartcampus.maua.br:1883"
+	// broker = "tcp://localhost:1883"
 
 	password := "public"
-	user := "public"
+	user := "PUBLIC"
 
 	id := ""
 	qos := 0
 	num := 1
 	store := ""
-
+	// fmt.Print(topic)
 	opts.AddBroker(broker)
 	opts.SetClientID(id)
 	opts.SetUsername(user)
@@ -42,17 +45,15 @@ func RunMQTTClient(payload string) {
 	if token := client.Connect(); token.Wait() && token.Error() != nil {
 		panic(token.Error())
 	}
-	fmt.Println("Sample Publisher Started")
+	// fmt.Println("Sample Publisher Started")
 	for i := 0; i < num; i++ {
-		fmt.Println("---- doing publish ----")
 		token := client.Publish(topic, byte(qos), false, payload)
 		token.Wait()
 	}
 
 	client.Disconnect(250)
-	fmt.Println("Sample Publisher Disconnected")
+	// fmt.Println("Sample Publisher Disconnected")
 }
-
 
 var (
 	nextTransactionId = 0
@@ -139,16 +140,18 @@ func (handler *CentralSystemHandler) OnMeterValues(chargePointId string, request
 		logDefault(chargePointId, request.GetFeatureName()).Printf("%v", mv)
 		// fmt.Print("reflect.TypeOf(mv): ",reflect.TypeOf(mv),"\n\n\n")
 
-		RunMQTTClient(string(request.GetFeatureName()) +", idConector="+ strconv.Itoa(request.ConnectorId)+", ChargePoitID=" +chargePointId+", Valor="+mv.SampledValue[0].Value)
-		RunMQTTClient("			Outras variaveis + " + string(request.GetFeatureName()) +fmt.Sprint(mv.Timestamp)+string(mv.SampledValue[0].Unit)+" "+string(mv.SampledValue[0].Format)+" "+string(mv.SampledValue[0].Measurand)+" "+string(mv.SampledValue[0].Context)+" "+string(mv.SampledValue[0].Location)+" ")
+		// RunMQTTClient(string(request.GetFeatureName()) +", idConector="+ strconv.Itoa(request.ConnectorId)+", ChargePoitID=" +chargePointId+", Valor="+mv.SampledValue[0].Value + ", " + +fmt.Sprint(mv.Timestamp)+string(mv.SampledValue[0].Unit)) // codigo que inviarei para o banco de dados
+		// RunMQTTClient("			Outras variaveis ➜ " + string(request.GetFeatureName()) +" "+string(mv.SampledValue[0].Format)+" "+string(mv.SampledValue[0].Measurand)+" "+string(mv.SampledValue[0].Context)+" "+string(mv.SampledValue[0].Location)+" ") // outras strings
+
+		RunMQTTClient("EVSE_MeterValues", chargePointId+"Carregador"+strconv.Itoa(request.ConnectorId), string(request.GetFeatureName())+", idConector="+strconv.Itoa(request.ConnectorId)+", ChargePoitID="+chargePointId+", Valor="+mv.SampledValue[0].Value+", "+fmt.Sprint(mv.Timestamp)+" |||| "+string(mv.SampledValue[0].Unit)+" "+string(mv.SampledValue[0].Format)+" "+string(mv.SampledValue[0].Measurand)+" "+string(mv.SampledValue[0].Context)+" "+string(mv.SampledValue[0].Location)) // codigo que inviarei para o banco de dados
+
 	}
 
-
-// 	➜               meterValue := types.MeterValue{
-// 		Timestamp:    types.DateTime{Time: time.Now()},                                               
-// // 		SampledValue: []types.SampledValue{sampledValue},                                           
-// // } 
-// types.SampledValue{Value: fmt.Sprintf("%v", stateHandler.meterValue), Unit: types.UnitOfMeasureWh, Format: types.ValueFormatRaw, Measurand: types.MeasurandEnergyActiveExportRegister, Context: types.ReadingContextSamplePeriodic, Location: types.LocationOutlet}
+	// meterValue := types.MeterValue{
+	// 		Timestamp:    types.DateTime{Time: time.Now()},
+	// 		SampledValue: []types.SampledValue{sampledValue},
+	// // }
+	// types.SampledValue{Value: fmt.Sprintf("%v", stateHandler.meterValue), Unit: types.UnitOfMeasureWh, Format: types.ValueFormatRaw, Measurand: types.MeasurandEnergyActiveExportRegister, Context: types.ReadingContextSamplePeriodic, Location: types.LocationOutlet}
 	return core.NewMeterValuesConfirmation(), nil
 }
 
@@ -179,17 +182,31 @@ func (handler *CentralSystemHandler) OnStartTransaction(chargePointId string, re
 		return nil, fmt.Errorf("connector %v is currently busy with another transaction", request.ConnectorId)
 	}
 	transaction := &TransactionInfo{}
-	transaction.idTag = request.IdTag
-	transaction.connectorId = request.ConnectorId
-	transaction.startMeter = request.MeterStart
-	transaction.startTime = request.Timestamp
-	transaction.id = nextTransactionId
-	nextTransactionId += 1
-	connector.currentTransaction = transaction.id
-	info.transactions[transaction.id] = transaction
+	transaction.idTag = request.IdTag               //idTag: O ID da tag do usuário que iniciou a transação.
+	transaction.connectorId = request.ConnectorId   //connectorId: O ID do conector onde a transação está ocorrendo.
+	transaction.startMeter = request.MeterStart     //startMeter: A leitura inicial do medidor no início da transação.
+	transaction.startTime = request.Timestamp       //startTime: O timestamp indicando quando a transação foi iniciada.
+	transaction.id = nextTransactionId              //id: Um identificador único para a transação. Este é incrementado usando nextTransactionId.
+	nextTransactionId += 1                          //
+	connector.currentTransaction = transaction.id   //
+	info.transactions[transaction.id] = transaction //
 	//TODO: check billable clients
+
+	// type TransactionInfo struct {
+	// id          int
+	// startTime   *types.DateTime
+	// endTime     *types.DateTime			Ñ
+	// startMeter  int						ok
+	// endMeter    int						Ñ
+	// connectorId int						ok
+	// idTag       string					ok
+	// }
 	logDefault(chargePointId, request.GetFeatureName()).Infof("started transaction %v for connector %v", transaction.id, transaction.connectorId)
+
+	RunMQTTClient("EVSE_StartTransactions", chargePointId+"Carregador"+strconv.Itoa(request.ConnectorId), string(request.GetFeatureName())+", idConector="+strconv.Itoa(transaction.connectorId)+", ChargePoitID="+chargePointId+", transaction.idTag="+transaction.idTag+", QuantidadeInicial= "+strconv.Itoa(transaction.startMeter)+", TempoInicio= "+fmt.Sprint(transaction.startTime))
+
 	return core.NewStartTransactionConfirmation(types.NewIdTagInfo(types.AuthorizationStatusAccepted), transaction.id), nil
+
 }
 
 func (handler *CentralSystemHandler) OnStopTransaction(chargePointId string, request *core.StopTransactionRequest) (confirmation *core.StopTransactionConfirmation, err error) {
@@ -205,10 +222,25 @@ func (handler *CentralSystemHandler) OnStopTransaction(chargePointId string, req
 		transaction.endMeter = request.MeterStop
 		//TODO: bill charging period to client
 	}
+
+	// type TransactionInfo struct {
+	// id          int
+	// startTime   *types.DateTime
+	// endTime     *types.DateTime			Ñ
+	// startMeter  int						ok
+	// endMeter    int						Ñ
+	// connectorId int						ok
+	// idTag       string					ok
+	// }
 	logDefault(chargePointId, request.GetFeatureName()).Infof("stopped transaction %v - %v", request.TransactionId, request.Reason)
 	for _, mv := range request.TransactionData {
 		logDefault(chargePointId, request.GetFeatureName()).Printf("%v", mv)
 	}
+
+	RunMQTTClient("EVSE_StopTransactions", chargePointId+"Carregador"+strconv.Itoa(transaction.connectorId), string(request.GetFeatureName())+", transaction.idTag="+strconv.Itoa(request.TransactionId)+"QuantidadeFinal: "+strconv.Itoa(transaction.endMeter)+"Tempo de Inicio: "+fmt.Sprint(transaction.endTime))
+
+	// RunMQTTClient("Finalizando a sessão\n" + " transaction.id =" + strconv.Itoa(transaction.id) + ", transaction.startTime =" + fmt.Sprint(transaction.startTime) + " transaction.endTime =" + fmt.Sprint(transaction.endTime) + " transaction.startMeter =" + strconv.Itoa(transaction.startMeter) + " transaction.endMeter =" + strconv.Itoa(transaction.endMeter) + " transaction.connectorId =" + strconv.Itoa(transaction.connectorId) + " transaction.idTag =" + transaction.idTag)
+
 	return core.NewStopTransactionConfirmation(), nil
 }
 
