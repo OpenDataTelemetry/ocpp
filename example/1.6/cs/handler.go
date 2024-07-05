@@ -3,6 +3,8 @@ package main
 import (
 	"fmt"
 	"time"
+    // "reflect"
+    "strconv"
 
 	"github.com/sirupsen/logrus"
 
@@ -10,6 +12,47 @@ import (
 	"github.com/lorenzodonini/ocpp-go/ocpp1.6/firmware"
 	"github.com/lorenzodonini/ocpp-go/ocpp1.6/types"
 )
+import (
+	MQTT "github.com/eclipse/paho.mqtt.golang"
+)
+// import "mqtt/mqtt"
+func RunMQTTClient(payload string) {
+	opts := MQTT.NewClientOptions()
+	topic := "test/topic"
+	broker := "mqtt.maua.br:1883"
+	broker = "tcp://localhost:1883"
+
+	password := "public"
+	user := "public"
+
+	id := ""
+	qos := 0
+	num := 1
+	store := ""
+
+	opts.AddBroker(broker)
+	opts.SetClientID(id)
+	opts.SetUsername(user)
+	opts.SetPassword(password)
+	if store != ":memory:" {
+		opts.SetStore(MQTT.NewFileStore(store))
+	}
+
+	client := MQTT.NewClient(opts)
+	if token := client.Connect(); token.Wait() && token.Error() != nil {
+		panic(token.Error())
+	}
+	fmt.Println("Sample Publisher Started")
+	for i := 0; i < num; i++ {
+		fmt.Println("---- doing publish ----")
+		token := client.Publish(topic, byte(qos), false, payload)
+		token.Wait()
+	}
+
+	client.Disconnect(250)
+	fmt.Println("Sample Publisher Disconnected")
+}
+
 
 var (
 	nextTransactionId = 0
@@ -78,7 +121,7 @@ func (handler *CentralSystemHandler) OnBootNotification(chargePointId string, re
 }
 
 func (handler *CentralSystemHandler) OnDataTransfer(chargePointId string, request *core.DataTransferRequest) (confirmation *core.DataTransferConfirmation, err error) {
-	logDefault(chargePointId, request.GetFeatureName()).Infof("received data %v", request.Data)
+	logDefault(chargePointId, request.GetFeatureName()).Infof("received data %d", request.Data)
 	return core.NewDataTransferConfirmation(core.DataTransferStatusAccepted), nil
 }
 
@@ -88,10 +131,24 @@ func (handler *CentralSystemHandler) OnHeartbeat(chargePointId string, request *
 }
 
 func (handler *CentralSystemHandler) OnMeterValues(chargePointId string, request *core.MeterValuesRequest) (confirmation *core.MeterValuesConfirmation, err error) {
+	// fmt.Print("Inicio MeterValue \n")
+
 	logDefault(chargePointId, request.GetFeatureName()).Infof("received meter values for connector %v. Meter values:\n", request.ConnectorId)
 	for _, mv := range request.MeterValue {
+
 		logDefault(chargePointId, request.GetFeatureName()).Printf("%v", mv)
+		// fmt.Print("reflect.TypeOf(mv): ",reflect.TypeOf(mv),"\n\n\n")
+
+		RunMQTTClient(string(request.GetFeatureName()) +", idConector="+ strconv.Itoa(request.ConnectorId)+", ChargePoitID=" +chargePointId+", Valor="+mv.SampledValue[0].Value)
+		RunMQTTClient("			Outras variaveis + " + string(request.GetFeatureName()) +fmt.Sprint(mv.Timestamp)+string(mv.SampledValue[0].Unit)+" "+string(mv.SampledValue[0].Format)+" "+string(mv.SampledValue[0].Measurand)+" "+string(mv.SampledValue[0].Context)+" "+string(mv.SampledValue[0].Location)+" ")
 	}
+
+
+// 	➜               meterValue := types.MeterValue{
+// 		Timestamp:    types.DateTime{Time: time.Now()},                                               
+// // 		SampledValue: []types.SampledValue{sampledValue},                                           
+// // } 
+// types.SampledValue{Value: fmt.Sprintf("%v", stateHandler.meterValue), Unit: types.UnitOfMeasureWh, Format: types.ValueFormatRaw, Measurand: types.MeasurandEnergyActiveExportRegister, Context: types.ReadingContextSamplePeriodic, Location: types.LocationOutlet}
 	return core.NewMeterValuesConfirmation(), nil
 }
 
@@ -183,4 +240,5 @@ func (handler *CentralSystemHandler) OnFirmwareStatusNotification(chargePointId 
 
 func logDefault(chargePointId string, feature string) *logrus.Entry {
 	return log.WithFields(logrus.Fields{"client": chargePointId, "message": feature})
+	// return log.WithFields(logrus.Fields{})
 }
