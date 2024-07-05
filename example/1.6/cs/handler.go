@@ -19,9 +19,8 @@ import (
 // --------------------------Achar Topico-----------------------------------------------------
 
 func idCarregador(chargePointId string, connectorId string) string {
-	if chargePointId == "EVSE_2" {
-		// fmt.Println(EVSE2[connectorId])
-		valor, ok := EVSE2[connectorId]
+	if chargePointId == "Simulador" {
+		valor, ok := SimuladorCarregador[connectorId]
 		if ok { // evita erro de connectorId não encontrado
 			return valor
 		}
@@ -41,7 +40,7 @@ func idCarregador(chargePointId string, connectorId string) string {
 // Variaveis Globais da Aplicação
 var (
 	// Registro das transações
-	Transaction = map[string]string{}
+	Transaction = map[string][]string{}
 
 	//  Estações de Carregamento
 	EVSE1 = map[string]string{
@@ -49,7 +48,10 @@ var (
 		"1": "19400577",
 		"2": "19743013",
 	}
-	EVSE2 = map[string]string{}
+	SimuladorCarregador = map[string]string{
+		"0": "SimulandoDadosCarregadorall",
+		"1": "SimulandoDadosCarregador1",
+	}
 )
 
 // -----------------------------Enviar MQTT----------------------------------------------------
@@ -65,6 +67,7 @@ func RunMQTTClient(tipoMensagem string, chargePointId string, ConnectorId string
 
 	password := "public"
 	user := "PUBLIC"
+	fmt.Println(Transaction)
 
 	id := ""
 	qos := 0
@@ -242,6 +245,8 @@ func (handler *CentralSystemHandler) OnStartTransaction(chargePointId string, re
 	logDefault(chargePointId, request.GetFeatureName()).Infof("started transaction %v for connector %v", transaction.id, transaction.connectorId)
 
 	RunMQTTClient("EVSE_StartTransactions", chargePointId, strconv.Itoa(request.ConnectorId), string(request.GetFeatureName())+", idConector="+strconv.Itoa(transaction.connectorId)+", ChargePoitID="+chargePointId+", transaction.idTag="+transaction.idTag+", QuantidadeInicial= "+strconv.Itoa(transaction.startMeter)+", TempoInicio= "+fmt.Sprint(transaction.startTime))
+	// salvando conectorId pelo
+	Transaction[strconv.Itoa(transaction.id)] = []string{chargePointId, strconv.Itoa(request.ConnectorId)}
 
 	return core.NewStartTransactionConfirmation(types.NewIdTagInfo(types.AuthorizationStatusAccepted), transaction.id), nil
 
@@ -274,7 +279,7 @@ func (handler *CentralSystemHandler) OnStopTransaction(chargePointId string, req
 	for _, mv := range request.TransactionData {
 		logDefault(chargePointId, request.GetFeatureName()).Printf("%v", mv)
 	}
-
+	fmt.Println("Gabarito")
 	fmt.Println(chargePointId)
 	fmt.Println(strconv.Itoa(transaction.connectorId)) // problema aqui
 	// fmt.Println(strconv.Itoa(request.ConnectorId)) // problema aqui --> usar apenas  request.TransactionId
@@ -282,7 +287,20 @@ func (handler *CentralSystemHandler) OnStopTransaction(chargePointId string, req
 	fmt.Println(strconv.Itoa(request.TransactionId))
 	fmt.Println(strconv.Itoa(transaction.endMeter))
 	fmt.Println(fmt.Sprint(transaction.endTime))
-	RunMQTTClient("EVSE_StopTransactions", chargePointId, strconv.Itoa(transaction.connectorId), string(request.GetFeatureName())+", transaction.idTag="+strconv.Itoa(request.TransactionId)+"QuantidadeFinal: "+strconv.Itoa(transaction.endMeter)+"Tempo de Inicio: "+fmt.Sprint(transaction.endTime))
+	fmt.Println("dados")
+
+	if values, ok := Transaction[strconv.Itoa(request.TransactionId)]; ok {
+		if len(values) >= 2 {
+			val1 := values[0]        // chargePointId
+			ConnectorId := values[1] // strconv.Itoa(request.ConnectorId)
+			fmt.Println(Transaction)
+			// Aqui você pode usar val1 e val2 conforme necessário
+			println("val1:", val1)
+			println("val2:", ConnectorId)
+			RunMQTTClient("EVSE_StopTransactions", chargePointId, ConnectorId, string(request.GetFeatureName())+", transaction.idTag="+strconv.Itoa(request.TransactionId)+"QuantidadeFinal: "+strconv.Itoa(transaction.endMeter)+"Tempo de Inicio: "+fmt.Sprint(transaction.endTime))
+			delete(Transaction, strconv.Itoa(request.TransactionId))
+		}
+	}
 
 	// RunMQTTClient("Finalizando a sessão\n" + " transaction.id =" + strconv.Itoa(transaction.id) + ", transaction.startTime =" + fmt.Sprint(transaction.startTime) + " transaction.endTime =" + fmt.Sprint(transaction.endTime) + " transaction.startMeter =" + strconv.Itoa(transaction.startMeter) + " transaction.endMeter =" + strconv.Itoa(transaction.endMeter) + " transaction.connectorId =" + strconv.Itoa(transaction.connectorId) + " transaction.idTag =" + transaction.idTag)
 
