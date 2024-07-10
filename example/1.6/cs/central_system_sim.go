@@ -26,7 +26,8 @@ import (
 
 // *****************************************************************************
 
-// Encontra o Id do Carregador pelo numero do carregador e pela estacao de carregamento
+
+// find the charger id by the charger number and the charger station
 func defineDeviceId(chargePointId string, connectorId string) (string, bool) {
 	var v string
 	ok := false
@@ -38,27 +39,42 @@ func defineDeviceId(chargePointId string, connectorId string) (string, bool) {
 	}
 	return v, ok
 }
+func defineMQTTTopic(deviceId string)(string){
+	
+	var messageTopic strings.Builder
+	messageTopic.WriteString(topic)
+	messageTopic.WriteString(deviceId)
+	messageTopic.WriteString(`/rx`)
+	// messageTopic := messageTopic.String()
 
+	// fmt.Printf("Topic -- > %s", messageTopic.String())
+	return messageTopic.String()
+}
 var (
 	// <- Create var for channel
 	c             chan string
 	c1            chan string
-	c3            chan [3]string
+	c3            chan [2]string
 	sbMqttMessage strings.Builder
-	// Registro das transações
+	// Registration of transactions
 	Transaction = map[string]string{}
 
-	//  Estações de Carregamento
+	// Charger stations
 	EVSE1 = map[string]string{
 		"0": "all",
 		"1": "19400577",
 		"2": "19743013",
 	}
-	//DEBUG para o simulador
+	//Simulator
 	SimuladorCarregador = map[string]string{
 		"0": "SimulandoDadosCarregadorall",
 		"1": "SimulandoDadosCarregador1",
 	}
+
+	topic = "OpenDataTelemetry/IMT/EVSE/"
+	// OpenDataTelemetry/IMT/EVSE/{DeviceId}/rx
+
+
 )
 
 // -----------------------------Pub MQTT----------------------------------------------------
@@ -70,23 +86,7 @@ var (
 // 		return
 // 	}
 // 	topic := fmt.Sprintf("OpenDataTelemetry/IMT/EVSE/%s/rx", deviceId)
-// 	broker := "tcp://mqtt.maua.br:1883"
-// 	password := "public"
-// 	user := "public"
-// 	id := ""
-// 	qos := 0
-// 	opts.AddBroker(broker)
-// 	opts.SetClientID(id)
-// 	opts.SetUsername(user)
-// 	opts.SetPassword(password)
-// 	client := MQTT.NewClient(opts)
-// 	if token := client.Connect(); token.Wait() && token.Error() != nil {
-// 		panic(token.Error())
-// 	}
-// 	token := client.Publish(topic, byte(qos), false, payload)
-// 	token.Wait()
-// 	client.Disconnect(250)
-// }
+
 
 var (
 	nextTransactionId = 0
@@ -199,8 +199,6 @@ func (handler *CentralSystemHandler) OnHeartbeat(chargePointId string, request *
 	m := sbMqttMessage.String()
 	fmt.Printf("\n\n### OnHeartbeat: %s", m)
 	c <- m
-	// TODO: One channel per Type
-	// c3 <- [3]string{chargePointId, chargePointId, m}
 	return core.NewHeartbeatConfirmation(types.NewDateTime(time.Now())), nil
 
 }
@@ -211,43 +209,44 @@ func (handler *CentralSystemHandler) OnMeterValues(chargePointId string, request
 	for _, mv := range request.MeterValue {
 		logDefault(chargePointId, request.GetFeatureName()).Printf("%v", mv)
 
-		// RunMQTTClient(
-		// 	"EVSE_MeterValues",
-		// 	chargePointId,
-		// 	strconv.Itoa(request.ConnectorId),
-		// 	fmt.Sprintf(
-		// 		`{"type":"%s", "value":"%s", "timestamp": "%s", "unit": "%s", "format": "%s", "measurand":"%s", "context": "%s", "location": "%s"}`,
-		// 		request.GetFeatureName(),
-		// 		mv.SampledValue[0].Value,
-		// 		mv.Timestamp.String(),
-		// 		mv.SampledValue[0].Unit,
-		// 		mv.SampledValue[0].Format,
-		// 		mv.SampledValue[0].Measurand,
-		// 		mv.SampledValue[0].Context,
-		// 		mv.SampledValue[0].Location,
-		// 	),
-		// )
+	// Message
+	// sbMqttMessage.Reset()
+	// sbMqttMessage.WriteString(`{"type":"`)
+	// sbMqttMessage.WriteString(request.GetFeatureName())
+	// sbMqttMessage.WriteString(`", "chargePointId" : "`)
+	// sbMqttMessage.WriteString(chargePointId)
+	// sbMqttMessage.WriteString(`"}`)
 
+	// m := sbMqttMessage.String()
+	// fmt.Printf("\n\n### OnMeterValues: %s", m)
+
+	// c <- m
+
+
+	m := fmt.Sprintf(
+		`{"type":"%s", "value":"%s", "timestamp": "%s", "unit": "%s", "format": "%s", "measurand":"%s", "context": "%s", "location": "%s"}`,
+		request.GetFeatureName(),
+		mv.SampledValue[0].Value,
+		mv.Timestamp.String(),
+		mv.SampledValue[0].Unit,
+		mv.SampledValue[0].Format,
+		mv.SampledValue[0].Measurand,
+		mv.SampledValue[0].Context,
+		mv.SampledValue[0].Location,
+	)
+	deviceId, ok := defineDeviceId(chargePointId, strconv.Itoa(request.ConnectorId))
+	if !ok {
+		fmt.Println("ERRO")
+	}else{
+		fmt.Println("OK")
 	}
-
-	// meterValue := types.MeterValue{
-	// 		Timestamp:    types.DateTime{Time: time.Now()},
-	// 		SampledValue: []types.SampledValue{sampledValue},
-	// // }
-	// types.SampledValue{Value: fmt.Sprintf("%v", stateHandler.meterValue), Unit: types.UnitOfMeasureWh, Format: types.ValueFormatRaw, Measurand: types.MeasurandEnergyActiveExportRegister, Context: types.ReadingContextSamplePeriodic, Location: types.LocationOutlet}
-
-	fmt.Printf("\n\n### OnMeterValues:")
-	sbMqttMessage.Reset()
-	sbMqttMessage.WriteString(`{"type":"`)
-	sbMqttMessage.WriteString(request.GetFeatureName())
-	sbMqttMessage.WriteString(`", "chargePointId" : "`)
-	sbMqttMessage.WriteString(chargePointId)
-	sbMqttMessage.WriteString(`", "ConnectorId" : "`)
-	sbMqttMessage.WriteString(strconv.Itoa(request.ConnectorId))
-	sbMqttMessage.WriteString(`"}`)
-	m := sbMqttMessage.String()
-	fmt.Printf("\n\n### OnMeterValues: %s", m)
+	topic := defineMQTTTopic(deviceId)
+	fmt.Println("Topic -- > %s", topic)
 	c <- m
+
+	// c3 <- [2]string{topic, m}
+
+}
 
 	return core.NewMeterValuesConfirmation(), nil
 }
@@ -642,7 +641,8 @@ func main() {
 	// <- Make channel and assign to var
 	c = make(chan string)
 	c1 = make(chan string)
-	c3 = make(chan [3]string)
+	c3 = make(chan [2]string)
+
 	id := uuid.New().String()
 	var sbMqttClientId strings.Builder
 	var sbPubTopic strings.Builder
