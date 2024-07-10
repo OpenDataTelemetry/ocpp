@@ -33,17 +33,18 @@ func defineDeviceId(chargePointId string, connectorId string) (string, bool) {
 	if chargePointId == "EVSE_1" {
 		v, ok = EVSE1[connectorId]
 	}
-	if chargePointId == "Simulador" {
-		v, ok = SimuladorCarregador[connectorId]
-	}
 	return v, ok
 }
 
+//	type Request struct {
+//	    Id string
+//	}
+//
+// Variaveis Globais da Aplicação
 var (
-	// <- Create var for channel
+	// c = make(chan string)
+
 	c             chan string
-	c1            chan string
-	c3            chan [3]string
 	sbMqttMessage strings.Builder
 	// Registro das transações
 	Transaction = map[string]string{}
@@ -55,38 +56,41 @@ var (
 		"2": "19743013",
 	}
 	//DEBUG para o simulador
-	SimuladorCarregador = map[string]string{
-		"0": "SimulandoDadosCarregadorall",
-		"1": "SimulandoDadosCarregador1",
-	}
+	// SimuladorCarregador = map[string]string{
+	// 	"0": "SimulandoDadosCarregadorall",
+	// 	"1": "SimulandoDadosCarregador1",
+	// }
 )
 
-// -----------------------------Pub MQTT----------------------------------------------------
+// -----------------------------Enviar MQTT----------------------------------------------------
 
-// func RunMQTTClient(messageType string, chargePointId string, ConnectorId string, payload string) {
-// 	opts := MQTT.NewClientOptions()
-// 	deviceId, ok := defineDeviceId(chargePointId, ConnectorId)
-// 	if !ok {
-// 		return
-// 	}
-// 	topic := fmt.Sprintf("OpenDataTelemetry/IMT/EVSE/%s/rx", deviceId)
-// 	broker := "tcp://mqtt.maua.br:1883"
-// 	password := "public"
-// 	user := "public"
-// 	id := ""
-// 	qos := 0
-// 	opts.AddBroker(broker)
-// 	opts.SetClientID(id)
-// 	opts.SetUsername(user)
-// 	opts.SetPassword(password)
-// 	client := MQTT.NewClient(opts)
-// 	if token := client.Connect(); token.Wait() && token.Error() != nil {
-// 		panic(token.Error())
-// 	}
-// 	token := client.Publish(topic, byte(qos), false, payload)
-// 	token.Wait()
-// 	client.Disconnect(250)
-// }
+func RunMQTTClient(messageType string, chargePointId string, ConnectorId string, payload string) {
+	opts := MQTT.NewClientOptions()
+	deviceId, ok := defineDeviceId(chargePointId, ConnectorId)
+	if !ok {
+		return
+	}
+	topic := fmt.Sprintf("OpenDataTelemetry/IMT/EVSE/%s/rx", deviceId)
+	broker := "tcp://mqtt.maua.br:1883"
+	password := "public"
+	user := "public"
+
+	id := ""
+	qos := 0
+	opts.AddBroker(broker)
+	opts.SetClientID(id)
+	opts.SetUsername(user)
+	opts.SetPassword(password)
+
+	client := MQTT.NewClient(opts)
+	if token := client.Connect(); token.Wait() && token.Error() != nil {
+		panic(token.Error())
+	}
+	token := client.Publish(topic, byte(qos), false, payload)
+	token.Wait()
+
+	client.Disconnect(250)
+}
 
 var (
 	nextTransactionId = 0
@@ -146,50 +150,24 @@ type CentralSystemHandler struct {
 
 func (handler *CentralSystemHandler) OnAuthorize(chargePointId string, request *core.AuthorizeRequest) (confirmation *core.AuthorizeConfirmation, err error) {
 	logDefault(chargePointId, request.GetFeatureName()).Infof("client authorized")
-	sbMqttMessage.Reset()
-	sbMqttMessage.WriteString(`{"type":"`)
-	sbMqttMessage.WriteString(request.GetFeatureName())
-	sbMqttMessage.WriteString(`", "chargePointId" : "`)
-	sbMqttMessage.WriteString(chargePointId)
-	sbMqttMessage.WriteString(`"}`)
-	m := sbMqttMessage.String()
-	fmt.Printf("\n\n### OnAuthorize: %s", m)
-	c <- m
-
 	return core.NewAuthorizationConfirmation(types.NewIdTagInfo(types.AuthorizationStatusAccepted)), nil
 }
 
 func (handler *CentralSystemHandler) OnBootNotification(chargePointId string, request *core.BootNotificationRequest) (confirmation *core.BootNotificationConfirmation, err error) {
 	logDefault(chargePointId, request.GetFeatureName()).Infof("boot confirmed")
-	sbMqttMessage.Reset()
-	sbMqttMessage.WriteString(`{"type":"`)
-	sbMqttMessage.WriteString(request.GetFeatureName())
-	sbMqttMessage.WriteString(`", "chargePointId" : "`)
-	sbMqttMessage.WriteString(chargePointId)
-	sbMqttMessage.WriteString(`"}`)
-	m := sbMqttMessage.String()
-	fmt.Printf("\n\n### OnBootNotification: %s", m)
-	c <- m
-
 	return core.NewBootNotificationConfirmation(types.NewDateTime(time.Now()), defaultHeartbeatInterval, core.RegistrationStatusAccepted), nil
 }
 
 func (handler *CentralSystemHandler) OnDataTransfer(chargePointId string, request *core.DataTransferRequest) (confirmation *core.DataTransferConfirmation, err error) {
 	logDefault(chargePointId, request.GetFeatureName()).Infof("received data %d", request.Data)
-	sbMqttMessage.Reset()
-	sbMqttMessage.WriteString(`{"type":"`)
-	sbMqttMessage.WriteString(request.GetFeatureName())
-	sbMqttMessage.WriteString(`", "chargePointId" : "`)
-	sbMqttMessage.WriteString(chargePointId)
-	sbMqttMessage.WriteString(`"}`)
-	m := sbMqttMessage.String()
-	fmt.Printf("\n\n### OnDataTransfer: %s", m)
-	c <- m
 	return core.NewDataTransferConfirmation(core.DataTransferStatusAccepted), nil
 }
 
 func (handler *CentralSystemHandler) OnHeartbeat(chargePointId string, request *core.HeartbeatRequest) (confirmation *core.HeartbeatConfirmation, err error) {
 	logDefault(chargePointId, request.GetFeatureName()).Infof("heartbeat handled")
+	// type HeartbeatRequest struct {
+	// }
+
 	sbMqttMessage.Reset()
 	sbMqttMessage.WriteString(`{"type":"`)
 	sbMqttMessage.WriteString(request.GetFeatureName())
@@ -197,10 +175,11 @@ func (handler *CentralSystemHandler) OnHeartbeat(chargePointId string, request *
 	sbMqttMessage.WriteString(chargePointId)
 	sbMqttMessage.WriteString(`"}`)
 	m := sbMqttMessage.String()
-	fmt.Printf("\n\n### OnHeartbeat: %s", m)
+	// token := pClient.Publish(sbPubTopic.String(), byte(pQos), false, m)
+	// token.Wait()
 	c <- m
-	// TODO: One channel per Type
-	// c3 <- [3]string{chargePointId, chargePointId, m}
+	//
+
 	return core.NewHeartbeatConfirmation(types.NewDateTime(time.Now())), nil
 
 }
@@ -209,24 +188,26 @@ func (handler *CentralSystemHandler) OnMeterValues(chargePointId string, request
 
 	logDefault(chargePointId, request.GetFeatureName()).Infof("received meter values for connector %v. Meter values:\n", request.ConnectorId)
 	for _, mv := range request.MeterValue {
-		logDefault(chargePointId, request.GetFeatureName()).Printf("%v", mv)
 
-		// RunMQTTClient(
-		// 	"EVSE_MeterValues",
-		// 	chargePointId,
-		// 	strconv.Itoa(request.ConnectorId),
-		// 	fmt.Sprintf(
-		// 		`{"type":"%s", "value":"%s", "timestamp": "%s", "unit": "%s", "format": "%s", "measurand":"%s", "context": "%s", "location": "%s"}`,
-		// 		request.GetFeatureName(),
-		// 		mv.SampledValue[0].Value,
-		// 		mv.Timestamp.String(),
-		// 		mv.SampledValue[0].Unit,
-		// 		mv.SampledValue[0].Format,
-		// 		mv.SampledValue[0].Measurand,
-		// 		mv.SampledValue[0].Context,
-		// 		mv.SampledValue[0].Location,
-		// 	),
-		// )
+		logDefault(chargePointId, request.GetFeatureName()).Printf("%v", mv)
+		// fmt.Print("reflect.TypeOf(mv): ",reflect.TypeOf(mv),"\n\n\n")
+
+		RunMQTTClient(
+			"EVSE_MeterValues",
+			chargePointId,
+			strconv.Itoa(request.ConnectorId),
+			fmt.Sprintf(
+				`{"type":"%s", "value":"%s", "timestamp": "%s", "unit": "%s", "format": "%s", "measurand":"%s", "context": "%s", "location": "%s"}`,
+				request.GetFeatureName(),
+				mv.SampledValue[0].Value,
+				mv.Timestamp.String(),
+				mv.SampledValue[0].Unit,
+				mv.SampledValue[0].Format,
+				mv.SampledValue[0].Measurand,
+				mv.SampledValue[0].Context,
+				mv.SampledValue[0].Location,
+			),
+		)
 
 	}
 
@@ -235,20 +216,6 @@ func (handler *CentralSystemHandler) OnMeterValues(chargePointId string, request
 	// 		SampledValue: []types.SampledValue{sampledValue},
 	// // }
 	// types.SampledValue{Value: fmt.Sprintf("%v", stateHandler.meterValue), Unit: types.UnitOfMeasureWh, Format: types.ValueFormatRaw, Measurand: types.MeasurandEnergyActiveExportRegister, Context: types.ReadingContextSamplePeriodic, Location: types.LocationOutlet}
-
-	fmt.Printf("\n\n### OnMeterValues:")
-	sbMqttMessage.Reset()
-	sbMqttMessage.WriteString(`{"type":"`)
-	sbMqttMessage.WriteString(request.GetFeatureName())
-	sbMqttMessage.WriteString(`", "chargePointId" : "`)
-	sbMqttMessage.WriteString(chargePointId)
-	sbMqttMessage.WriteString(`", "ConnectorId" : "`)
-	sbMqttMessage.WriteString(strconv.Itoa(request.ConnectorId))
-	sbMqttMessage.WriteString(`"}`)
-	m := sbMqttMessage.String()
-	fmt.Printf("\n\n### OnMeterValues: %s", m)
-	c <- m
-
 	return core.NewMeterValuesConfirmation(), nil
 }
 
@@ -279,37 +246,27 @@ func (handler *CentralSystemHandler) OnStatusNotification(chargePointId string, 
 	// 	EvseID          int             `json:"evseId" validate:"gte=0"`
 	// 	ConnectorID     int             `json:"connectorId" validate:"gte=0"`
 	// }
-	// RunMQTTClient(
-	// 	"statusNotification",
-	// 	chargePointId,
-	// 	strconv.Itoa(request.ConnectorId),
-	// 	fmt.Sprintf(
-	// 		`{"type":"%s", "connectorId":"%s", "timestamp": "%s", "status": "%s", "errorCode": "%s", "info":"%s" , "vendorId": "%s","vendorErrorCode":"%s"}`,
-	// 		request.GetFeatureName(),
-	// 		strconv.Itoa(request.ConnectorId),
-	// 		request.Timestamp,
-	// 		request.Status,
-	// 		request.ErrorCode,
-	// 		request.Info,
-	// 		request.VendorId,
-	// 		request.VendorErrorCode,
-	// 		// request.,
-	// 		// request.,
-	// 		// request.,
-	// 		// request.,
-	// 	),
-	// )
-
-	sbMqttMessage.Reset()
-	sbMqttMessage.WriteString(`{"type":"`)
-	sbMqttMessage.WriteString(request.GetFeatureName())
-	sbMqttMessage.WriteString(`", "chargePointId" : "`)
-	sbMqttMessage.WriteString(chargePointId)
-	sbMqttMessage.WriteString(`"}`)
-	m := sbMqttMessage.String()
-	fmt.Printf("\n\n### OnStatusNotification: %s", m)
-	c <- m
-
+	RunMQTTClient(
+		"statusNotification",
+		chargePointId,
+		strconv.Itoa(request.ConnectorId),
+		fmt.Sprintf(
+			`{"type":"%s", "connectorId":"%s", "timestamp": "%s", "status": "%s", "errorCode": "%s", "info":"%s" , "vendorId": "%s","vendorErrorCode":"%s"}`,
+			request.GetFeatureName(),
+			strconv.Itoa(request.ConnectorId),
+			request.Timestamp,
+			request.Status,
+			request.ErrorCode,
+			request.Info,
+			request.VendorId,
+			request.VendorErrorCode,
+			// request.,
+			// request.,
+			// request.,
+			// request.,
+		),
+	)
+	fmt.Println()
 	return core.NewStatusNotificationConfirmation(), nil
 }
 
@@ -345,36 +302,25 @@ func (handler *CentralSystemHandler) OnStartTransaction(chargePointId string, re
 	logDefault(chargePointId, request.GetFeatureName()).Infof("started transaction %v for connector %v", transaction.id, transaction.connectorId)
 
 	// string(request.GetFeatureName())
-	// RunMQTTClient(
-	// 	"EVSE_StartTransactions",
-	// 	chargePointId,
-	// 	strconv.Itoa(request.ConnectorId),
-	// 	fmt.Sprintf(
-	// 		`{"type":"%s","startMeter":"%s", "transactionId": "%s", "startTime": "%s", "connectorId" : "%s", "IdTag" : "%s"}`,
-	// 		request.GetFeatureName(),
-	// 		strconv.Itoa(transaction.startMeter),
-	// 		strconv.Itoa(transaction.id),
-	// 		fmt.Sprint(transaction.startTime),
-	// 		strconv.Itoa(request.ConnectorId),
-	// 		transaction.idTag,
-	// 	),
-	// )
+	RunMQTTClient(
+		"EVSE_StartTransactions",
+		chargePointId,
+		strconv.Itoa(request.ConnectorId),
+		fmt.Sprintf(
+			`{"type":"%s","startMeter":"%s", "transactionId": "%s", "startTime": "%s", "connectorId" : "%s", "IdTag" : "%s"}`,
+			request.GetFeatureName(),
+			strconv.Itoa(transaction.startMeter),
+			strconv.Itoa(transaction.id),
+			fmt.Sprint(transaction.startTime),
+			strconv.Itoa(request.ConnectorId),
+			transaction.idTag,
+		),
+	)
 
 	// salvando conectorId pelo
 	Transaction[strconv.Itoa(transaction.id)] = strconv.Itoa(request.ConnectorId)
-	fmt.Printf("\n\n### OnStartTransaction:")
-
-	sbMqttMessage.Reset()
-	sbMqttMessage.WriteString(`{"type":"`)
-	sbMqttMessage.WriteString(request.GetFeatureName())
-	sbMqttMessage.WriteString(`", "chargePointId" : "`)
-	sbMqttMessage.WriteString(chargePointId)
-	sbMqttMessage.WriteString(`"}`)
-	m := sbMqttMessage.String()
-	fmt.Printf("\n\n### OnStartTransaction: %s", m)
-	c <- m
-
 	return core.NewStartTransactionConfirmation(types.NewIdTagInfo(types.AuthorizationStatusAccepted), transaction.id), nil
+
 }
 
 func (handler *CentralSystemHandler) OnStopTransaction(chargePointId string, request *core.StopTransactionRequest) (confirmation *core.StopTransactionConfirmation, err error) {
@@ -405,30 +351,20 @@ func (handler *CentralSystemHandler) OnStopTransaction(chargePointId string, req
 		logDefault(chargePointId, request.GetFeatureName()).Printf("%v", mv)
 	}
 
-	// RunMQTTClient(
-	// 	"EVSE_StopTransactions",
-	// 	chargePointId,
-	// 	Transaction[strconv.Itoa(request.TransactionId)],
-	// 	fmt.Sprintf(
-	// 		`{"type":"%s","endMeter":"%s", "transactionId": "%s", "endTime": "%s", "connectorId" : "%s"}`,
-	// 		request.GetFeatureName(),
-	// 		strconv.Itoa(transaction.endMeter),
-	// 		strconv.Itoa(request.TransactionId),
-	// 		fmt.Sprint(transaction.endTime),
-	// 		Transaction[strconv.Itoa(request.TransactionId)],
-	// 	),
-	// )
+	RunMQTTClient(
+		"EVSE_StopTransactions",
+		chargePointId,
+		Transaction[strconv.Itoa(request.TransactionId)],
+		fmt.Sprintf(
+			`{"type":"%s","endMeter":"%s", "transactionId": "%s", "endTime": "%s", "connectorId" : "%s"}`,
+			request.GetFeatureName(),
+			strconv.Itoa(transaction.endMeter),
+			strconv.Itoa(request.TransactionId),
+			fmt.Sprint(transaction.endTime),
+			Transaction[strconv.Itoa(request.TransactionId)],
+		),
+	)
 	delete(Transaction, strconv.Itoa(request.TransactionId))
-
-	sbMqttMessage.Reset()
-	sbMqttMessage.WriteString(`{"type":"`)
-	sbMqttMessage.WriteString(request.GetFeatureName())
-	sbMqttMessage.WriteString(`", "chargePointId" : "`)
-	sbMqttMessage.WriteString(chargePointId)
-	sbMqttMessage.WriteString(`"}`)
-	m := sbMqttMessage.String()
-	fmt.Printf("\n\n### OnStopTransaction: %s", m)
-	c <- m
 
 	return core.NewStopTransactionConfirmation(), nil
 }
@@ -636,13 +572,7 @@ func exampleRoutine(chargePointID string, handler *CentralSystemHandler) {
 
 // Start function
 func main() {
-	// TODO: MAKE A CHANNEL WITH 4 FIELDS: [type, chargePointID, connectorId, data]
-	// TODO: USE defineDeviceId(connectorId) TO MOUNT THE TOPIC
-	// TODO: RECEIVE EACH VARIABLE AND MOUNT THE JSON MESSAGE
-	// <- Make channel and assign to var
 	c = make(chan string)
-	c1 = make(chan string)
-	c3 = make(chan [3]string)
 	id := uuid.New().String()
 	var sbMqttClientId strings.Builder
 	var sbPubTopic strings.Builder
@@ -671,33 +601,41 @@ func main() {
 	go func() {
 		for {
 
-			incoming, ok := <-c
-			// incoming, ok := <-c1
-
-			if !ok {
-				return
-			}
-
-			fmt.Printf("\n\nINCOMING: %s", incoming)
-
-			// fmt.Printf("\n\nINCOMING: %s", incoming[0])
-			// fmt.Printf("\n\nINCOMING: %s", incoming[1])
-			// fmt.Printf("\n\nINCOMING: %s", incoming[2])
-
-			// deviceId := defineDeviceId(incoming[0], incoming[1])
-
+			fmt.Printf("Entrei main")
+			incoming := <-c
+			fmt.Printf("Connected to %s\n", incoming)
 			sbPubTopic.Reset()
-			// sbPubTopic.WriteString("OpenDataTelemetry/IMT/EVSE/")
-			sbPubTopic.WriteString("OpenDataTelemetry/debugIMT/EVSE/")
-			// deviceId, ok := defineDeviceId(incoming[0], incoming[1])
-			// sbPubTopic.WriteString(deviceId)
-			// fmt.Printf("\n\nString -- >" + sbPubTopic.String())
-			token := pClient.Publish(sbPubTopic.String(), byte(pQos), false, incoming)
-			// token := pClient.Publish(sbPubTopic.String(), byte(pQos), false, incoming[2])
+			// sbPubTopic.WriteString("OpenDataTelemetry/IMT/GaugePressure/")
+			// sbPubTopic.WriteString(devEUI)
+			// sbPubTopic.WriteString(devEUI)
+			// sbPubTopic.WriteString("/rx/lns_imt")
+			token := pClient.Publish("OpenDataTelemetry/I2MT/EVSE", byte(pQos), false, incoming)
 			token.Wait()
+			// if !ok{
+			//     return
+			// }
 
+			// fmt.Println(request.Id)
 		}
 	}()
+	// for {
+	// 	incoming := <-c
+	// 	fmt.Printf("Connected to %s\n", incoming)
+
+	// 	// s := strings.Split(incoming[0], "/")
+	// 	// devEUI := s[3]
+
+	// 	// sbPubTopic.Reset()
+	// 	// sbPubTopic.WriteString("OpenDataTelemetry/IMT/GaugePressure/")
+	// 	// sbPubTopic.WriteString(devEUI)
+	// 	// sbPubTopic.WriteString("/rx/lns_imt")
+	// 	// token := pClient.Publish(sbPubTopic.String(), byte(pQos), false, incoming[1])
+	// 	// token.Wait()
+
+	// }
+
+	// token := pClient.Publish(sbPubTopic.String(), byte(pQos), false, incoming[1])
+	// token.Wait()
 
 	// Load config from ENV
 	var listenPort = defaultListenPort

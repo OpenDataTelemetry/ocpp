@@ -17,27 +17,13 @@ import (
 )
 
 // Encontra o Id do Carregador pelo numero do carregador e pela estacao de carregamento
-func idCharger(chargePointId string, connectorId string) string {
-	if chargePointId == "Simulador" {
-		valor, ok := SimuladorCarregador[connectorId]
-		if ok { // evita erro de connectorId não encontrado
-			return valor
-		} else {
-			return "ChargerId"
-		}
-	} else if chargePointId == "EVSE_1" {
-		// fmt.Println(EVSE1[connectorId])
-		valor, ok := EVSE1[connectorId]
-		if ok { // evita erro de connectorId não encontrado
-			return valor
-		} else {
-			return "ChargerId"
-		}
+func defineDeviceId(chargePointId string, connectorId string) (string, bool) {
+	var v string
+	ok := false
+	if chargePointId == "EVSE_1" {
+		v, ok = EVSE1[connectorId]
 	}
-	if connectorId == "chargePoints" {
-		return connectorId // Heartbeat -> id do dispositivo = id do chargePoint
-	}
-	return "ChargePointId" // evita erro de chargePointId não encontrado
+	return v, ok
 }
 
 // Variaveis Globais da Aplicação
@@ -52,43 +38,38 @@ var (
 		"2": "19743013",
 	}
 	//DEBUG para o simulador
-	SimuladorCarregador = map[string]string{
-		"0": "SimulandoDadosCarregadorall",
-		"1": "SimulandoDadosCarregador1",
-	}
+	// SimuladorCarregador = map[string]string{
+	// 	"0": "SimulandoDadosCarregadorall",
+	// 	"1": "SimulandoDadosCarregador1",
+	// }
 )
 
 // -----------------------------Enviar MQTT----------------------------------------------------
 
 func RunMQTTClient(messageType string, chargePointId string, ConnectorId string, payload string) {
 	opts := MQTT.NewClientOptions()
-	topic := fmt.Sprintf("OpenDataTelemetry/IMT/EVSE/%s/rx", idCharger(chargePointId, ConnectorId))
-	topic = fmt.Sprintf("OpenDataTelemetry/IMT/debug/EVSE/%s/%s/rx", messageType, idCharger(chargePointId, ConnectorId))
+	deviceId, ok := defineDeviceId(chargePointId, ConnectorId)
+	if !ok {
+		return
+	}
+	topic := fmt.Sprintf("OpenDataTelemetry/IMT/EVSE/%s/rx", deviceId)
 	broker := "tcp://mqtt.maua.br:1883"
-
 	password := "public"
 	user := "public"
 
 	id := ""
 	qos := 0
-	num := 1
-	store := ""
 	opts.AddBroker(broker)
 	opts.SetClientID(id)
 	opts.SetUsername(user)
 	opts.SetPassword(password)
-	if store != ":memory:" {
-		opts.SetStore(MQTT.NewFileStore(store))
-	}
 
 	client := MQTT.NewClient(opts)
 	if token := client.Connect(); token.Wait() && token.Error() != nil {
 		panic(token.Error())
 	}
-	for i := 0; i < num; i++ {
-		token := client.Publish(topic, byte(qos), false, payload)
-		token.Wait()
-	}
+	token := client.Publish(topic, byte(qos), false, payload)
+	token.Wait()
 
 	client.Disconnect(250)
 }
@@ -168,20 +149,18 @@ func (handler *CentralSystemHandler) OnHeartbeat(chargePointId string, request *
 	logDefault(chargePointId, request.GetFeatureName()).Infof("heartbeat handled")
 	// type HeartbeatRequest struct {
 	// }
-	RunMQTTClient(
-		"EVSE_Heartbeat",
-		"chargePoints",
-		chargePointId,
-		fmt.Sprintf(
-			`{"type":"%s", "timestamp" : "%s" }`,
-			request.GetFeatureName(),
-			time.Now().Format(time.RFC3339),
-		),
-	)
+	// RunMQTTClient(
+	// "EVSE_Heartbeat",
+	// chargePointId,
+	// "chargePoints",
+	// `{"type":"%s", "timestamp" : "%s" }`,
+	// 	request.GetFeatureName(),
+	// 	time.Now().Format(time.RFC3339),
 
-	fmt.Println(`{"type":"%s", "timestamp" : "%s" }`,
-		request.GetFeatureName(),
-		time.Now().Format(time.RFC3339))
+	// )
+	m := "message"
+	token := pClient.Publish(sbPubTopic.String(), byte(pQos), false, m)
+	token.Wait()
 
 	return core.NewHeartbeatConfirmation(types.NewDateTime(time.Now())), nil
 
