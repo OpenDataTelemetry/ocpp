@@ -53,8 +53,7 @@ func defineMQTTTopic(deviceId string)(string){
 var (
 	// <- Create var for channel
 	c             chan string
-	c1            chan string
-	c3            chan [2]string
+	c2            chan [2]string
 	sbMqttMessage strings.Builder
 	// Registration of transactions
 	Transaction = map[string]string{}
@@ -154,7 +153,8 @@ func (handler *CentralSystemHandler) OnAuthorize(chargePointId string, request *
 	sbMqttMessage.WriteString(`"}`)
 	m := sbMqttMessage.String()
 	fmt.Printf("\n\n### OnAuthorize: %s", m)
-	c <- m
+	// c <- m
+	c2 <- [2]string{"topic", "m"}
 
 	return core.NewAuthorizationConfirmation(types.NewIdTagInfo(types.AuthorizationStatusAccepted)), nil
 }
@@ -169,8 +169,8 @@ func (handler *CentralSystemHandler) OnBootNotification(chargePointId string, re
 	sbMqttMessage.WriteString(`"}`)
 	m := sbMqttMessage.String()
 	fmt.Printf("\n\n### OnBootNotification: %s", m)
-	c <- m
-
+	// c <- m
+	c2 <- [2]string{"topic", "m"}
 	return core.NewBootNotificationConfirmation(types.NewDateTime(time.Now()), defaultHeartbeatInterval, core.RegistrationStatusAccepted), nil
 }
 
@@ -184,7 +184,8 @@ func (handler *CentralSystemHandler) OnDataTransfer(chargePointId string, reques
 	sbMqttMessage.WriteString(`"}`)
 	m := sbMqttMessage.String()
 	fmt.Printf("\n\n### OnDataTransfer: %s", m)
-	c <- m
+	// c <- m
+	c2 <- [2]string{"topic", "m"}
 	return core.NewDataTransferConfirmation(core.DataTransferStatusAccepted), nil
 }
 
@@ -198,7 +199,8 @@ func (handler *CentralSystemHandler) OnHeartbeat(chargePointId string, request *
 	sbMqttMessage.WriteString(`"}`)
 	m := sbMqttMessage.String()
 	fmt.Printf("\n\n### OnHeartbeat: %s", m)
-	c <- m
+	// c <- m
+	c2 <- [2]string{"topic", "m"}
 	return core.NewHeartbeatConfirmation(types.NewDateTime(time.Now())), nil
 
 }
@@ -243,9 +245,9 @@ func (handler *CentralSystemHandler) OnMeterValues(chargePointId string, request
 
 	topic := defineMQTTTopic(deviceId)
 	fmt.Println("Topic -- > %s", topic)
-	c <- m
+	// c <- m
 
-	// c3 <- [2]string{topic, m}
+	c2 <- [2]string{topic, m}
 
 }
 
@@ -308,8 +310,8 @@ func (handler *CentralSystemHandler) OnStatusNotification(chargePointId string, 
 	sbMqttMessage.WriteString(`"}`)
 	m := sbMqttMessage.String()
 	fmt.Printf("\n\n### OnStatusNotification: %s", m)
-	c <- m
-
+	// c <- m
+	c2 <- [2]string{"topic", "m"}
 	return core.NewStatusNotificationConfirmation(), nil
 }
 
@@ -372,8 +374,8 @@ func (handler *CentralSystemHandler) OnStartTransaction(chargePointId string, re
 	sbMqttMessage.WriteString(`"}`)
 	m := sbMqttMessage.String()
 	fmt.Printf("\n\n### OnStartTransaction: %s", m)
-	c <- m
-
+	// c <- m
+	c2 <- [2]string{"topic", "m"}
 	return core.NewStartTransactionConfirmation(types.NewIdTagInfo(types.AuthorizationStatusAccepted), transaction.id), nil
 }
 
@@ -428,8 +430,8 @@ func (handler *CentralSystemHandler) OnStopTransaction(chargePointId string, req
 	sbMqttMessage.WriteString(`"}`)
 	m := sbMqttMessage.String()
 	fmt.Printf("\n\n### OnStopTransaction: %s", m)
-	c <- m
-
+	// c <- m
+	c2 <- [2]string{"topic", "m"}
 	return core.NewStopTransactionConfirmation(), nil
 }
 
@@ -641,8 +643,7 @@ func main() {
 	// TODO: RECEIVE EACH VARIABLE AND MOUNT THE JSON MESSAGE
 	// <- Make channel and assign to var
 	c = make(chan string)
-	c1 = make(chan string)
-	c3 = make(chan [2]string)
+	c2 = make(chan [2]string)
 
 	id := uuid.New().String()
 	var sbMqttClientId strings.Builder
@@ -672,28 +673,29 @@ func main() {
 	go func() {
 		for {
 
-			incoming, ok := <-c
-			// incoming, ok := <-c3
-			fmt.Println(ok)
-			// if !ok {
-			// }
-
-			fmt.Printf("\n\nINCOMING: %s", incoming)
-
-			// incoming, ok := <-c3
+			// incoming, ok := <-c
 			// fmt.Println(ok)
 			// // if !ok {
 			// // }
 
-			// fmt.Printf("\n\nINCOMING: %s", incoming[0])
-			// fmt.Printf("\n\nINCOMING: %s", incoming[1])
+			// fmt.Printf("\n\nINCOMING: %s", incoming)
 
+			incoming, ok := <-c2
+			fmt.Println(ok)
+			// if !ok {
+			// }
 
-			sbPubTopic.Reset()
-			sbPubTopic.WriteString("OpenDataTelemetry/IMT/EVSE/")
-			token := pClient.Publish(sbPubTopic.String(), byte(pQos), false, incoming)
-			// token := pClient.Publish(sbPubTopic.String(), byte(pQos), false, incoming[2])
-			token.Wait()
+			fmt.Printf("\n\nINCOMING: %s", incoming[0])
+			fmt.Printf("\n\nINCOMING: %s", incoming[1])
+
+			fmt.Println(sbPubTopic)
+			fmt.Println(strconv.Itoa(pQos))
+
+			// sbPubTopic.Reset()
+			// sbPubTopic.WriteString("OpenDataTelemetry/IMT/EVSE/")
+			// token := pClient.Publish(sbPubTopic.String(), byte(pQos), false, incoming)
+			// // token := pClient.Publish(sbPubTopic.String(), byte(pQos), false, incoming[2])
+			// token.Wait()
 
 		}
 	}()
