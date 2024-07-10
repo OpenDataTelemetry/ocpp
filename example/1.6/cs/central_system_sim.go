@@ -222,9 +222,14 @@ func (handler *CentralSystemHandler) OnMeterValues(chargePointId string, request
 
 	// c <- m
 
-
+	deviceId, ok := defineDeviceId(chargePointId, strconv.Itoa(request.ConnectorId))
+	if !ok {
+		fmt.Println("ERRO")
+	}else{
+		fmt.Println("OK")
+	}
 	m := fmt.Sprintf(
-		`{"type":"%s", "value":"%s", "timestamp": "%s", "unit": "%s", "format": "%s", "measurand":"%s", "context": "%s", "location": "%s"}`,
+		`{"type":"%s", "value":"%s", "timestamp": "%s", "unit": "%s", "format": "%s", "measurand":"%s", "context": "%s", "location": "%s" "deviceId": %s}`,
 		request.GetFeatureName(),
 		mv.SampledValue[0].Value,
 		mv.Timestamp.String(),
@@ -233,13 +238,9 @@ func (handler *CentralSystemHandler) OnMeterValues(chargePointId string, request
 		mv.SampledValue[0].Measurand,
 		mv.SampledValue[0].Context,
 		mv.SampledValue[0].Location,
+		deviceId,
 	)
-	deviceId, ok := defineDeviceId(chargePointId, strconv.Itoa(request.ConnectorId))
-	if !ok {
-		fmt.Println("ERRO")
-	}else{
-		fmt.Println("OK")
-	}
+
 	topic := defineMQTTTopic(deviceId)
 	fmt.Println("Topic -- > %s", topic)
 	c <- m
@@ -672,26 +673,24 @@ func main() {
 		for {
 
 			incoming, ok := <-c
-			// incoming, ok := <-c1
-
-			if !ok {
-				return
-			}
+			// incoming, ok := <-c3
+			fmt.Println(ok)
+			// if !ok {
+			// }
 
 			fmt.Printf("\n\nINCOMING: %s", incoming)
 
+			// incoming, ok := <-c3
+			// fmt.Println(ok)
+			// // if !ok {
+			// // }
+
 			// fmt.Printf("\n\nINCOMING: %s", incoming[0])
 			// fmt.Printf("\n\nINCOMING: %s", incoming[1])
-			// fmt.Printf("\n\nINCOMING: %s", incoming[2])
 
-			// deviceId := defineDeviceId(incoming[0], incoming[1])
 
 			sbPubTopic.Reset()
-			// sbPubTopic.WriteString("OpenDataTelemetry/IMT/EVSE/")
-			sbPubTopic.WriteString("OpenDataTelemetry/debugIMT/EVSE/")
-			// deviceId, ok := defineDeviceId(incoming[0], incoming[1])
-			// sbPubTopic.WriteString(deviceId)
-			// fmt.Printf("\n\nString -- >" + sbPubTopic.String())
+			sbPubTopic.WriteString("OpenDataTelemetry/IMT/EVSE/")
 			token := pClient.Publish(sbPubTopic.String(), byte(pQos), false, incoming)
 			// token := pClient.Publish(sbPubTopic.String(), byte(pQos), false, incoming[2])
 			token.Wait()
