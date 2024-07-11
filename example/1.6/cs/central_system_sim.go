@@ -37,7 +37,8 @@ func defineDeviceId(chargePointId string, connectorId string) (string) {
 		v, ok = SimuladorCarregador[connectorId]
 	}
 	if !ok{
-		v = "Erro"
+		// v = "DeviceId"
+		v = "erro"
 	}
 	
 	return v
@@ -72,7 +73,8 @@ var (
 		"1": "SimulandoDadosCarregador1",
 	}
 
-	path = "OpenDataTelemetry/IMT/EVSE/"
+	// path = "OpenDataTelemetry/IMT/EVSE/"
+	path = "IMT/EVSE/"
 	// OpenDataTelemetry/IMT/EVSE/{DeviceId}/rx
 
 
@@ -167,7 +169,7 @@ func (handler *CentralSystemHandler) OnMeterValues(chargePointId string, request
 	for _, mv := range request.MeterValue {
 		logDefault(chargePointId, request.GetFeatureName()).Printf("%v", mv)
 
-	// Message
+	// Message TODO
 	// sbMqttMessage.Reset()
 	// sbMqttMessage.WriteString(`{"type":"`)
 	// sbMqttMessage.WriteString(request.GetFeatureName())
@@ -182,7 +184,7 @@ func (handler *CentralSystemHandler) OnMeterValues(chargePointId string, request
 	deviceId := defineDeviceId(chargePointId, strconv.Itoa(request.ConnectorId))
 
 	m := fmt.Sprintf(
-		`{"type":"%s", "value":"%s", "timestamp": "%s", "unit": "%s", "format": "%s", "measurand":"%s", "context": "%s", "location": "%s" "deviceId": %s}`,
+		`{"type":"%s", "value":"%s", "timestamp": "%s", "unit": "%s", "format": "%s", "measurand":"%s", "context": "%s", "location": "%s", "deviceId": "%s"}`,
 		request.GetFeatureName(),
 		mv.SampledValue[0].Value,
 		mv.Timestamp.String(),
@@ -289,6 +291,8 @@ func (handler *CentralSystemHandler) OnStartTransaction(chargePointId string, re
 
 	//saving Connectorid from the transaction ID
 	Transaction[strconv.Itoa(transaction.id)] = strconv.Itoa(request.ConnectorId)
+
+	fmt.Println("Transações : ", Transaction)
 	return core.NewStartTransactionConfirmation(types.NewIdTagInfo(types.AuthorizationStatusAccepted), transaction.id), nil
 }
 
@@ -335,8 +339,10 @@ func (handler *CentralSystemHandler) OnStopTransaction(chargePointId string, req
 	topic := defineMQTTTopic(deviceId)
 
 	c2 <- [2]string{topic, m}
+	fmt.Println("TransaçõesAntes : ", Transaction)
 
 	delete(Transaction, strconv.Itoa(request.TransactionId))
+	fmt.Println("TransaçõesDepois : ", Transaction)
 
 	return core.NewStopTransactionConfirmation(), nil
 }
@@ -556,9 +562,11 @@ func main() {
 	sbMqttClientId.WriteString("ocpp-")
 	sbMqttClientId.WriteString(id)
 
-	pBroker := "mqtt://mqtt.maua.br:1883"
+	// pBroker := "mqtt://mqtt.maua.br:1883"
+	pBroker := "mqtt://smartcampus.maua.br:1883"
+	
 	pClientId := sbMqttClientId.String()
-	pUser := "public"
+	pUser := "PUBLIC"
 	pPassword := "public"
 	pQos := 0
 
@@ -576,14 +584,13 @@ func main() {
 	}
 
 	go func() {
-		for {
+		for {													// send MQTT
 
 			// incoming, ok := <-c2
 			incoming := <-c2
 
 
-			fmt.Println("Topic: ", incoming[0])
-			fmt.Printf("\t Message: %s", incoming[1])
+			fmt.Println("Topic: ", incoming[0],"\t Message:", incoming[1])
 
 			token := pClient.Publish(incoming[0], byte(pQos), false, incoming[1])
 			token.Wait()
