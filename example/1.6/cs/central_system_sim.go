@@ -159,7 +159,32 @@ func (handler *CentralSystemHandler) OnBootNotification(chargePointId string, re
 func (handler *CentralSystemHandler) OnDataTransfer(chargePointId string, request *core.DataTransferRequest) (confirmation *core.DataTransferConfirmation, err error) {
 	logDefault(chargePointId, request.GetFeatureName()).Infof("received data %d", request.Data)
 
+	// type DataTransferRequest struct {
+	// 	VendorId  string      `json:"vendorId" validate:"required,max=255"`
+	// 	MessageId string      `json:"messageId,omitempty" validate:"max=50"`
+	// 	Data      interface{} `json:"data,omitempty"`
+	// }
+
+	// m := fmt.Sprintf(
+	// 	`{"type":"%s", "VendorId":"%s", "MessageId": "%s", "timestamp": "%s"}`,
+	// 	request.GetFeatureName(),
+	// 	request.VendorId,
+	// 	request.MessageId,
+	// 	request.Data,
+	// )
+
+	// topic := defineMQTTTopic(deviceId)
+
+	// c2 <- [2]string{topic, m}
+
+
+
+
+
+
 	return core.NewDataTransferConfirmation(core.DataTransferStatusAccepted), nil
+
+	///BATERIA
 }
 
 func (handler *CentralSystemHandler) OnHeartbeat(chargePointId string, request *core.HeartbeatRequest) (confirmation *core.HeartbeatConfirmation, err error) {
@@ -187,7 +212,7 @@ func (handler *CentralSystemHandler) OnMeterValues(chargePointId string, request
 	// m := sbMqttMessage.String()
 	// fmt.Printf("\n\n### OnMeterValues: %s", m)
 
-
+	
 	deviceId := defineDeviceId(chargePointId, strconv.Itoa(request.ConnectorId))
 
 	m := fmt.Sprintf(
@@ -298,6 +323,13 @@ func (handler *CentralSystemHandler) OnStartTransaction(chargePointId string, re
 
 	//saving Connectorid from the transaction ID
 	Transaction[strconv.Itoa(transaction.id)] = strconv.Itoa(request.ConnectorId)
+
+	// Send mensage to connector
+	// request := core.NewDataTransferConfirmation
+	// err := centralSystem.SendRequestAsync("clientId", request, callbackFunction)
+	// if err != nil {
+		// log.Printf("error sending message: %v", err)
+	// }
 
 	return core.NewStartTransactionConfirmation(types.NewIdTagInfo(types.AuthorizationStatusAccepted), transaction.id), nil
 }
