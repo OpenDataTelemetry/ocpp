@@ -299,7 +299,6 @@ func (handler *CentralSystemHandler) OnStartTransaction(chargePointId string, re
 	//saving Connectorid from the transaction ID
 	Transaction[strconv.Itoa(transaction.id)] = strconv.Itoa(request.ConnectorId)
 
-	fmt.Println("Transações : ", Transaction)
 	return core.NewStartTransactionConfirmation(types.NewIdTagInfo(types.AuthorizationStatusAccepted), transaction.id), nil
 }
 
@@ -337,19 +336,17 @@ func (handler *CentralSystemHandler) OnStopTransaction(chargePointId string, req
 	m := fmt.Sprintf(
 		`{"type":"%s","endMeter":"%s", "transactionId": "%s", "endTime": "%s", "connectorId" : "%s"}`,
 		request.GetFeatureName(),
-		strconv.Itoa(transaction.endMeter),
+		strconv.Itoa(request.MeterStop),
 		strconv.Itoa(request.TransactionId),
-		fmt.Sprint(transaction.endTime),
+		fmt.Sprint(request.Timestamp),
 		Transaction[strconv.Itoa(request.TransactionId)],
 	)
 
 	topic := defineMQTTTopic(deviceId)
 
 	c2 <- [2]string{topic, m}
-	fmt.Println("TransaçõesAntes : ", Transaction)
 
 	delete(Transaction, strconv.Itoa(request.TransactionId))
-	fmt.Println("TransaçõesDepois : ", Transaction)
 
 	return core.NewStopTransactionConfirmation(), nil
 }
@@ -597,7 +594,7 @@ func main() {
 			// incoming, ok := <-c2
 			incoming := <-c2
 			// fmt.Println("Topic: ", incoming[0],"\t Message:",incoming[1])
-			incoming[1] =	fmt.Sprintf( `{"props":{"deviceName":"EVSE","data":` +incoming[1]+"}}")
+			incoming[1] =	fmt.Sprintf( `{"props":{"deviceName":"EVSE"},"data":` +incoming[1]+"}")
 
 			// fmt.Println("Topic: ", incoming[0],"\t Message:",`{"props":{"deviceNam
 // e":"EVSE","data":` +incoming[1]+"}}")
