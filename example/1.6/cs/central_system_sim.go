@@ -35,6 +35,8 @@ func defineDeviceId(chargePointId string, connectorId string) (string) {
 		v, ok = EVSE1[connectorId]
 	} else if chargePointId == "Simulador" {
 		v, ok = SimuladorCarregador[connectorId]
+	} else if chargePointId == "Simulador2" {
+		v, ok = SimuladorCarregador2[connectorId]
 	}
 	if !ok{
 		// v = "DeviceId"
@@ -70,7 +72,12 @@ var (
 	//Simulator
 	SimuladorCarregador = map[string]string{
 		"0": "Simulador",
-		"1": "SimulandoDadosCarregador1",
+		"1": "Simulador-1",
+	}
+	//Simulator
+	SimuladorCarregador2 = map[string]string{
+		"0": "Simulador2",
+		"1": "Simulador2-1",
 	}
 
 	// path = "OpenDataTelemetry/IMT/EVSE/"
@@ -184,7 +191,7 @@ func (handler *CentralSystemHandler) OnMeterValues(chargePointId string, request
 	deviceId := defineDeviceId(chargePointId, strconv.Itoa(request.ConnectorId))
 
 	m := fmt.Sprintf(
-		`{"props":{"deviceName":"EVSE","port":"200"},"data": {"type":"%s", "value":"%s", "timestamp": "%s", "unit": "%s", "format": "%s", "measurand":"%s", "context": "%s", "location": "%s", "deviceId": "%s"}}`,
+		`{"type":"%s", "value":"%s", "timestamp": "%s", "unit": "%s", "format": "%s", "measurand":"%s", "context": "%s", "location": "%s", "deviceId": "%s"}`,
 		request.GetFeatureName(),
 		mv.SampledValue[0].Value,
 		mv.Timestamp.String(),
@@ -224,7 +231,7 @@ func (handler *CentralSystemHandler) OnStatusNotification(chargePointId string, 
 	deviceId := defineDeviceId(chargePointId, strconv.Itoa(request.ConnectorId))
 
 	m := fmt.Sprintf(
-			`{"props":{"deviceName":"EVSE","port":"200"},"data": {"type":"%s", "connectorId":"%s", "timestamp": "%s", "status": "%s", "errorCode": "%s", "info":"%s" , "vendorId": "%s","vendorErrorCode":"%s"}}`,
+			`{"type":"%s", "connectorId":"%s", "timestamp": "%s", "status": "%s", "errorCode": "%s", "info":"%s" , "vendorId": "%s","vendorErrorCode":"%s"}`,
 			request.GetFeatureName(),
 			strconv.Itoa(request.ConnectorId),
 			request.Timestamp,
@@ -276,7 +283,7 @@ func (handler *CentralSystemHandler) OnStartTransaction(chargePointId string, re
 	deviceId := defineDeviceId(chargePointId, strconv.Itoa(request.ConnectorId))
 
 	m := fmt.Sprintf(
-		`{"props":{"deviceName":"EVSE","port":"200"},"data": {"type":"%s","startMeter":"%s", "transactionId": "%s", "startTime": "%s", "connectorId" : "%s", "IdTag" : "%s"}}`,
+		`{"type":"%s","startMeter":"%s", "transactionId": "%s", "startTime": "%s", "connectorId" : "%s", "IdTag" : "%s"}`,
 		request.GetFeatureName(),
 		strconv.Itoa(transaction.startMeter),
 		strconv.Itoa(transaction.id),
@@ -328,7 +335,7 @@ func (handler *CentralSystemHandler) OnStopTransaction(chargePointId string, req
 	deviceId := defineDeviceId(chargePointId,Transaction[strconv.Itoa(request.TransactionId)])
 
 	m := fmt.Sprintf(
-		`{"props":{"deviceName":"EVSE","port":"200"},"data": {"type":"%s","endMeter":"%s", "transactionId": "%s", "endTime": "%s", "connectorId" : "%s"}}`,
+		`{"type":"%s","endMeter":"%s", "transactionId": "%s", "endTime": "%s", "connectorId" : "%s"}`,
 		request.GetFeatureName(),
 		strconv.Itoa(transaction.endMeter),
 		strconv.Itoa(request.TransactionId),
@@ -563,7 +570,8 @@ func main() {
 	sbMqttClientId.WriteString(id)
 
 	// pBroker := "mqtt://mqtt.maua.br:1883"
-	pBroker := "mqtt://smartcampus.maua.br:1883"
+	// pBroker := "mqtt://smartcampus.maua.br:1883"
+	pBroker := "mqtt://weblab.maua.br:1883"
 	
 	pClientId := sbMqttClientId.String()
 	pUser := "PUBLIC"
@@ -588,8 +596,12 @@ func main() {
 
 			// incoming, ok := <-c2
 			incoming := <-c2
-			// fmt.Println("Topic: ", incoming[0],"\t Message:",'{"props":{"deviceName":"EVSE","data":' +incoming[1]+"}}")
+			// fmt.Println("Topic: ", incoming[0],"\t Message:",incoming[1])
+			incoming[1] =	fmt.Sprintf( `{"props":{"deviceName":"EVSE","data":` +incoming[1]+"}}")
 
+			// fmt.Println("Topic: ", incoming[0],"\t Message:",`{"props":{"deviceNam
+// e":"EVSE","data":` +incoming[1]+"}}")
+			fmt.Println(incoming[1])
 			token := pClient.Publish(incoming[0], byte(pQos), false,incoming[1])
 			token.Wait()
 
