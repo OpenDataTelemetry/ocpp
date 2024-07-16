@@ -231,6 +231,21 @@ func (handler *CentralSystemHandler) OnMeterValues(chargePointId string, request
 	topic := defineMQTTTopic(deviceId)
 
 	c2 <- [2]string{topic, m}
+	myCallback := func(confirmation *core.ChangeAvailabilityConfirmation, e error) {
+		if e != nil {
+			log.Printf("\n\n\noperation failed: %v", e)
+		} else {
+			log.Printf("\n\n\n\n\nstatus request MeterValues: %v", confirmation.Status)
+			// ... 
+		}
+	}
+	err2 := centralSystem.ChangeAvailability("EVSE_1", myCallback, 1, core.AvailabilityTypeInoperative)
+	log.Printf("Sending the second request from meterValues")
+	if err2 != nil {
+		log.Printf("\n\n\n\n\nerror sending second message: %v", err2)
+	}else{
+		log.Printf("IT WORKED OUT 2")
+	}
 
 }
 
