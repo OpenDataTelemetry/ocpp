@@ -22,6 +22,7 @@ import (
 	"github.com/lorenzodonini/ocpp-go/ocpp1.6/types"
 	"github.com/lorenzodonini/ocpp-go/ocppj"
 	"github.com/lorenzodonini/ocpp-go/ws"
+	"github.com/lorenzodonini/ocpp-go/ocpp" //ANA
 )
 
 // *****************************************************************************
@@ -239,14 +240,37 @@ func (handler *CentralSystemHandler) OnMeterValues(chargePointId string, request
 			// ... 
 		}
 	}
-	err2 := centralSystem.ChangeAvailability("EVSE_1", myCallback, 1, core.AvailabilityTypeInoperative)
-	log.Printf("Sending the second request from meterValues")
+	// myCallback2 := func(confirmation *core.SendRequestAsyncConfirmation, e error) {
+	// 	if e != nil {
+	// 		log.Printf("\n\n\noperation failed: %v", e)
+	// 	} else {
+	// 		log.Printf("\n\n\n\n\nstatus request MeterValues - manual : %v", confirmation.Status)
+	// 		// ... 
+	// 	}
+	// }
+	request := core.NewChangeAvailabilityRequest(1, core.AvailabilityTypeInoperative)
+
+	err = centralSystem.SendRequestAsync(chargePointId, request, func(confirmation ocpp.Response, e error) {
+		if e != nil {
+			log.Printf("\n\n\noperation failed - manual: %v", e)
+		} else {
+			log.Printf("\n\n\n\n\nstatus request MeterValues - manual: %v", confirmation)
+			// ... 
+		}
+	})
+	if err != nil {
+		log.Printf("error sending message: %v", err)
+	}else{
+		log.Printf("IT WORKED OUT 1")
+	}
+
+	err2 := centralSystem.ChangeAvailability(chargePointId, myCallback, 1, core.AvailabilityTypeInoperative)
+	log.Printf("Sending the request from meterValues")
 	if err2 != nil {
 		log.Printf("\n\n\n\n\nerror sending second message: %v", err2)
 	}else{
 		log.Printf("IT WORKED OUT 2")
 	}
-
 }
 
 	return core.NewMeterValuesConfirmation(), nil
@@ -677,35 +701,12 @@ func main() {
 	centralSystem.SetReservationHandler(handler)
 	centralSystem.SetRemoteTriggerHandler(handler)
 	centralSystem.SetSmartChargingHandler(handler)
-	myCallback := func(confirmation *core.ChangeAvailabilityConfirmation, e error) {
-		if e != nil {
-			log.Printf("\n\n\noperation failed: %v", e)
-		} else {
-			log.Printf("\n\n\n\n\nstatus: %v", confirmation.Status)
-			// ... 
-		}
-	}
 
 	// Add handlers for dis/connection of charge points
 	centralSystem.SetNewChargePointHandler(func(chargePoint ocpp16.ChargePointConnection) {
 		handler.chargePoints[chargePoint.ID()] = &ChargePointState{connectors: map[int]*ConnectorInfo{}, transactions: map[int]*TransactionInfo{}}
 		log.WithField("client", chargePoint.ID()).Info("new charge point connected")
 		// go exampleRoutine(chargePoint.ID(), handler)
-
-		err := centralSystem.ChangeAvailability("EVSE_1", myCallback, 1, core.AvailabilityTypeInoperative)
-		log.Printf("Sending the first request")
-		if err != nil {
-			log.Printf("\n\nerror sending first message: %v", err)
-		}else{
-			log.Printf("IT WORKED OUT 1")
-		}
-		err2 := centralSystem.ChangeAvailability("EVSE_1", myCallback, 1, core.AvailabilityTypeInoperative)
-		log.Printf("Sending the second request")
-		if err2 != nil {
-			log.Printf("\n\n\n\n\nerror sending second message: %v", err2)
-		}else{
-			log.Printf("IT WORKED OUT 2")
-		}
 
 	})
 	centralSystem.SetChargePointDisconnectedHandler(func(chargePoint ocpp16.ChargePointConnection) {
