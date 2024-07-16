@@ -240,28 +240,24 @@ func (handler *CentralSystemHandler) OnMeterValues(chargePointId string, request
 			// ... 
 		}
 	}
-	// myCallback2 := func(confirmation *core.SendRequestAsyncConfirmation, e error) {
-	// 	if e != nil {
-	// 		log.Printf("\n\n\noperation failed: %v", e)
-	// 	} else {
-	// 		log.Printf("\n\n\n\n\nstatus request MeterValues - manual : %v", confirmation.Status)
-	// 		// ... 
-	// 	}
-	// }
-	request := core.NewChangeAvailabilityRequest(1, core.AvailabilityTypeInoperative)
-
-	err = centralSystem.SendRequestAsync(chargePointId, request, func(confirmation ocpp.Response, e error) {
+	callback2 := func(confirmation ocpp.Response, e error) {
+		msg := confirmation.(*core.ChangeAvailabilityConfirmation)
 		if e != nil {
 			log.Printf("\n\n\noperation failed - manual: %v", e)
 		} else {
-			log.Printf("\n\n\n\n\nstatus request MeterValues - manual: %v", confirmation)
-			// ... 
+			log.Printf("\n\n\n\n\nstatus request MeterValues - manual: %v", msg.Status)
+			// ... your own custom logic
 		}
-	})
+	}
+
+	request := core.NewChangeAvailabilityRequest(1, core.AvailabilityTypeInoperative)
+
+	err := centralSystem.SendRequestAsync(chargePointId,request, callback2)
+	
 	if err != nil {
-		log.Printf("error sending message: %v", err)
+		log.Printf("error sending message - manual: %v", err)
 	}else{
-		log.Printf("IT WORKED OUT 1")
+		log.Printf("IT WORKED OUT manual 1")
 	}
 
 	err2 := centralSystem.ChangeAvailability(chargePointId, myCallback, 1, core.AvailabilityTypeInoperative)
