@@ -26,25 +26,27 @@ import (
 
 // *****************************************************************************
 
-
 // find the charger id by the charger number and the charger station
-func defineDeviceId(chargePointId string, connectorId string) (string) {
+func defineDeviceId(chargePointId string, connectorId string) string {
 	var v string
 	ok := false
 	if chargePointId == "EVSE_1" {
 		v, ok = EVSE1[connectorId]
 	} else if chargePointId == "Simulador" {
 		v, ok = SimuladorCarregador[connectorId]
+	} else if chargePointId == "Simulador2" {
+		v, ok = SimuladorCarregador2[connectorId]
 	}
-	if !ok{
-		v = "Erro"
+	if !ok {
+		// v = "DeviceId"
+		v = "erro"
 	}
-	
+
 	return v
 }
 
-func defineMQTTTopic(deviceId string)(string){
-	
+func defineMQTTTopic(deviceId string) string {
+
 	var messageTopic strings.Builder
 	messageTopic.WriteString(path)
 	messageTopic.WriteString(deviceId)
@@ -52,6 +54,7 @@ func defineMQTTTopic(deviceId string)(string){
 
 	return messageTopic.String()
 }
+
 var (
 	// <- Create var for channel
 	c             chan string
@@ -69,15 +72,19 @@ var (
 	//Simulator
 	SimuladorCarregador = map[string]string{
 		"0": "Simulador",
-		"1": "SimulandoDadosCarregador1",
+		"1": "Simulador-1",
+	}
+	//Simulator
+	SimuladorCarregador2 = map[string]string{
+		"0": "Simulador2",
+		"1": "Simulador2-1",
 	}
 
-	path = "OpenDataTelemetry/IMT/EVSE/"
+	// path = "OpenDataTelemetry/IMT/EVSE/"
+	path = "IMT/EVSE/"
 	// OpenDataTelemetry/IMT/EVSE/{DeviceId}/rx
 
-
 )
-
 
 var (
 	nextTransactionId = 0
@@ -150,13 +157,32 @@ func (handler *CentralSystemHandler) OnBootNotification(chargePointId string, re
 func (handler *CentralSystemHandler) OnDataTransfer(chargePointId string, request *core.DataTransferRequest) (confirmation *core.DataTransferConfirmation, err error) {
 	logDefault(chargePointId, request.GetFeatureName()).Infof("received data %d", request.Data)
 
+	// type DataTransferRequest struct {
+	// 	VendorId  string      `json:"vendorId" validate:"required,max=255"`
+	// 	MessageId string      `json:"messageId,omitempty" validate:"max=50"`
+	// 	Data      interface{} `json:"data,omitempty"`
+	// }
+
+	// m := fmt.Sprintf(
+	// 	`{"type":"%s", "VendorId":"%s", "MessageId": "%s", "timestamp": "%s"}`,
+	// 	request.GetFeatureName(),
+	// 	request.VendorId,
+	// 	request.MessageId,
+	// 	request.Data,
+	// )
+
+	// topic := defineMQTTTopic(deviceId)
+
+	// c2 <- [2]string{topic, m}
+
 	return core.NewDataTransferConfirmation(core.DataTransferStatusAccepted), nil
+
+	///BATERIA
 }
 
 func (handler *CentralSystemHandler) OnHeartbeat(chargePointId string, request *core.HeartbeatRequest) (confirmation *core.HeartbeatConfirmation, err error) {
 	logDefault(chargePointId, request.GetFeatureName()).Infof("heartbeat handled")
 
-	
 	return core.NewHeartbeatConfirmation(types.NewDateTime(time.Now())), nil
 
 }
@@ -167,38 +193,36 @@ func (handler *CentralSystemHandler) OnMeterValues(chargePointId string, request
 	for _, mv := range request.MeterValue {
 		logDefault(chargePointId, request.GetFeatureName()).Printf("%v", mv)
 
-	// Message
-	// sbMqttMessage.Reset()
-	// sbMqttMessage.WriteString(`{"type":"`)
-	// sbMqttMessage.WriteString(request.GetFeatureName())
-	// sbMqttMessage.WriteString(`", "chargePointId" : "`)
-	// sbMqttMessage.WriteString(chargePointId)
-	// sbMqttMessage.WriteString(`"}`)
+		// Message TODO
+		// sbMqttMessage.Reset()
+		// sbMqttMessage.WriteString(`{"type":"`)
+		// sbMqttMessage.WriteString(request.GetFeatureName())
+		// sbMqttMessage.WriteString(`", "chargePointId" : "`)
+		// sbMqttMessage.WriteString(chargePointId)
+		// sbMqttMessage.WriteString(`"}`)
 
-	// m := sbMqttMessage.String()
-	// fmt.Printf("\n\n### OnMeterValues: %s", m)
+		// m := sbMqttMessage.String()
+		// fmt.Printf("\n\n### OnMeterValues: %s", m)
 
+		deviceId := defineDeviceId(chargePointId, strconv.Itoa(request.ConnectorId))
 
-	deviceId := defineDeviceId(chargePointId, strconv.Itoa(request.ConnectorId))
+		m := fmt.Sprintf(
+			`{"type":"%s", "value":"%s", "timestamp": "%s", "unit": "%s", "format": "%s", "measurand":"%s", "context": "%s", "location": "%s", "deviceId": "%s"}`,
+			request.GetFeatureName(),
+			mv.SampledValue[0].Value,
+			mv.Timestamp.String(),
+			mv.SampledValue[0].Unit,
+			mv.SampledValue[0].Format,
+			mv.SampledValue[0].Measurand,
+			mv.SampledValue[0].Context,
+			mv.SampledValue[0].Location,
+			deviceId,
+		)
 
-	m := fmt.Sprintf(
-		`{"type":"%s", "value":"%s", "timestamp": "%s", "unit": "%s", "format": "%s", "measurand":"%s", "context": "%s", "location": "%s" "deviceId": %s}`,
-		request.GetFeatureName(),
-		mv.SampledValue[0].Value,
-		mv.Timestamp.String(),
-		mv.SampledValue[0].Unit,
-		mv.SampledValue[0].Format,
-		mv.SampledValue[0].Measurand,
-		mv.SampledValue[0].Context,
-		mv.SampledValue[0].Location,
-		deviceId,
-	)
+		topic := defineMQTTTopic(deviceId)
 
-	topic := defineMQTTTopic(deviceId)
-
-	c2 <- [2]string{topic, m}
-
-}
+		c2 <- [2]string{topic, m}
+	}
 
 	return core.NewMeterValuesConfirmation(), nil
 }
@@ -218,25 +242,23 @@ func (handler *CentralSystemHandler) OnStatusNotification(chargePointId string, 
 		logDefault(chargePointId, request.GetFeatureName()).Infof("all connectors updated status to %v", request.Status)
 	}
 
-
 	deviceId := defineDeviceId(chargePointId, strconv.Itoa(request.ConnectorId))
 
 	m := fmt.Sprintf(
-			`{"type":"%s", "connectorId":"%s", "timestamp": "%s", "status": "%s", "errorCode": "%s", "info":"%s" , "vendorId": "%s","vendorErrorCode":"%s"}`,
-			request.GetFeatureName(),
-			strconv.Itoa(request.ConnectorId),
-			request.Timestamp,
-			request.Status,
-			request.ErrorCode,
-			request.Info,
-			request.VendorId,
-			request.VendorErrorCode,
-		)
+		`{"type":"%s", "connectorId":"%s", "timestamp": "%s", "status": "%s", "errorCode": "%s", "info":"%s" , "vendorId": "%s","vendorErrorCode":"%s"}`,
+		request.GetFeatureName(),
+		strconv.Itoa(request.ConnectorId),
+		request.Timestamp,
+		request.Status,
+		request.ErrorCode,
+		request.Info,
+		request.VendorId,
+		request.VendorErrorCode,
+	)
 
 	topic := defineMQTTTopic(deviceId)
 
 	c2 <- [2]string{topic, m}
-
 
 	return core.NewStatusNotificationConfirmation(), nil
 }
@@ -289,6 +311,14 @@ func (handler *CentralSystemHandler) OnStartTransaction(chargePointId string, re
 
 	//saving Connectorid from the transaction ID
 	Transaction[strconv.Itoa(transaction.id)] = strconv.Itoa(request.ConnectorId)
+
+	// Send mensage to connector
+	// request := core.NewDataTransferConfirmation
+	// err := centralSystem.SendRequestAsync("clientId", request, callbackFunction)
+	// if err != nil {
+	// log.Printf("error sending message: %v", err)
+	// }
+
 	return core.NewStartTransactionConfirmation(types.NewIdTagInfo(types.AuthorizationStatusAccepted), transaction.id), nil
 }
 
@@ -320,15 +350,14 @@ func (handler *CentralSystemHandler) OnStopTransaction(chargePointId string, req
 		logDefault(chargePointId, request.GetFeatureName()).Printf("%v", mv)
 	}
 
-
-	deviceId := defineDeviceId(chargePointId,Transaction[strconv.Itoa(request.TransactionId)])
+	deviceId := defineDeviceId(chargePointId, Transaction[strconv.Itoa(request.TransactionId)])
 
 	m := fmt.Sprintf(
 		`{"type":"%s","endMeter":"%s", "transactionId": "%s", "endTime": "%s", "connectorId" : "%s"}`,
 		request.GetFeatureName(),
-		strconv.Itoa(transaction.endMeter),
+		strconv.Itoa(request.MeterStop),
 		strconv.Itoa(request.TransactionId),
-		fmt.Sprint(transaction.endTime),
+		fmt.Sprint(request.Timestamp),
 		Transaction[strconv.Itoa(request.TransactionId)],
 	)
 
@@ -556,9 +585,12 @@ func main() {
 	sbMqttClientId.WriteString("ocpp-")
 	sbMqttClientId.WriteString(id)
 
-	pBroker := "mqtt://mqtt.maua.br:1883"
+	// pBroker := "mqtt://mqtt.maua.br:1883"
+	// pBroker := "mqtt://smartcampus.maua.br:1883"
+	pBroker := "mqtt://weblab.maua.br:1883"
+
 	pClientId := sbMqttClientId.String()
-	pUser := "public"
+	pUser := "PUBLIC"
 	pPassword := "public"
 	pQos := 0
 
@@ -576,15 +608,16 @@ func main() {
 	}
 
 	go func() {
-		for {
+		for { // send MQTT
 
 			// incoming, ok := <-c2
 			incoming := <-c2
+			// fmt.Println("Topic: ", incoming[0],"\t Message:",incoming[1])
+			incoming[1] = fmt.Sprintf(`{"props":{"deviceName":"EVSE"},"data":` + incoming[1] + "}")
 
-
-			fmt.Println("Topic: ", incoming[0])
-			fmt.Printf("\t Message: %s", incoming[1])
-
+			// fmt.Println("Topic: ", incoming[0],"\t Message:",`{"props":{"deviceNam
+			// e":"EVSE","data":` +incoming[1]+"}}")
+			fmt.Println(incoming[1])
 			token := pClient.Publish(incoming[0], byte(pQos), false, incoming[1])
 			token.Wait()
 
@@ -616,11 +649,13 @@ func main() {
 	centralSystem.SetReservationHandler(handler)
 	centralSystem.SetRemoteTriggerHandler(handler)
 	centralSystem.SetSmartChargingHandler(handler)
+
 	// Add handlers for dis/connection of charge points
 	centralSystem.SetNewChargePointHandler(func(chargePoint ocpp16.ChargePointConnection) {
 		handler.chargePoints[chargePoint.ID()] = &ChargePointState{connectors: map[int]*ConnectorInfo{}, transactions: map[int]*TransactionInfo{}}
 		log.WithField("client", chargePoint.ID()).Info("new charge point connected")
 		// go exampleRoutine(chargePoint.ID(), handler)
+
 	})
 	centralSystem.SetChargePointDisconnectedHandler(func(chargePoint ocpp16.ChargePointConnection) {
 		log.WithField("client", chargePoint.ID()).Info("charge point disconnected")

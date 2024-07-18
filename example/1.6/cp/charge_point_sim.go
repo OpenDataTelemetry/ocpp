@@ -103,7 +103,7 @@ func exampleRoutine(chargePoint ocpp16.ChargePoint, stateHandler *ChargePointHan
 		}
 		time.Sleep(time.Second * time.Duration(sampleInterval))
 		stateHandler.meterValue += 10
-		sampledValue := types.SampledValue{Value: fmt.Sprintf("%v", stateHandler.meterValue), Unit: types.UnitOfMeasureWh, Format: types.ValueFormatRaw, Measurand: types.MeasurandEnergyActiveExportRegister, Context: types.ReadingContextSamplePeriodic, Location: types.LocationOutlet}
+		sampledValue := types.SampledValue{Value: fmt.Sprintf("%v", stateHandler.meterValue), Unit: types.UnitOfMeasureWh, Format: types.ValueFormatRaw, Measurand: types.MeasurandEnergyActiveImportRegister, Context: types.ReadingContextSamplePeriodic, Location: types.LocationOutlet}
 		meterValue := types.MeterValue{Timestamp: types.NewDateTime(time.Now()), SampledValue: []types.SampledValue{sampledValue}}
 		meterConf, err := chargePoint.MeterValues(chargingConnector, []types.MeterValue{meterValue})
 		checkError(err)
